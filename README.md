@@ -60,6 +60,37 @@ The package currently has the following feature sets
   `first(cars); last(cars); current(cars); "formr." %contains% "mr."`
 	
 
+## AI API Integration
+#### call AI language models from your surveys
+
+formr supports AI language models (Anthropic Claude and OpenAI GPT) via a REST API. This lets
+surveys generate dynamic text, personalised feedback, or AI-assisted answers to open-ended input.
+
+**Endpoints** (OAuth token required):
+- `POST /api/post/ai-complete` — send a prompt, receive generated text
+- `GET  /api/get/ai-models`    — list the available models for the active provider
+
+Quick example — JavaScript inside an `html` survey item:
+
+```javascript
+fetch('/api/post/ai-complete', {
+  method:  'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    access_token: window.formr_access_token,
+    prompt: document.getElementById('user_input').value
+  })
+})
+.then(r => r.json())
+.then(data => {
+  document.getElementById('ai_output').textContent = data.response.text;
+});
+```
+
+See `documentation/example_surveys/ai_complete_example.csv` for a ready-to-import survey.
+Configuration (API keys, rate limits, cost cap, admin toggle) lives in `config-dist/settings.php`;
+the required DB migration is `sql/patches/047_ai_log_table.sql`.
+
 ## OpenCPU + R + Knitr + Markdown
 [OpenCPU](https://public.opencpu.org/pages/) is a way to safely use complex [R](https://www.r-project.org/) expressions on the web. We use it for all kinds of stuff.
 

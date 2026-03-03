@@ -2,13 +2,21 @@
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased]
+### Added
+- AI language model integration via `POST /api/post/ai-complete` and `GET /api/get/ai-models`
+  (OAuth-authenticated). Supports Anthropic Claude and OpenAI providers with configurable
+  per-user rate limits (hourly/daily call counts), a daily output-token cost cap, and a
+  global admin toggle (`$settings['ai']['enabled']`).
+  See `config-dist/settings.php` for all options and `sql/patches/047_ai_log_table.sql` for
+  the required DB migration.
+
 ## [v0.25.0] - 08.12.2025
 ### Added
 - Add notifications for study admins
 - SQL Patch 46
 ### Fixes
 - Fix csrf token for Ajax calls
-
 
 ## [v0.24.4] - 31.07.2025
 ### Fixes

@@ -47,7 +47,11 @@ $settings['alternative_opencpu_instance'] = array(
 // Supported providers: 'claude' (Anthropic) and 'openai'
 // API endpoint: POST /api/post/ai-complete  (requires OAuth token)
 //               GET  /api/get/ai-models
+// DB migration:  sql/patches/047_ai_log_table.sql  (run once after update)
 $settings['ai'] = array(
+	// Set to false to disable the AI endpoints globally (returns HTTP 503)
+	'enabled'        => true,
+
 	// Active provider: 'claude' or 'openai'
 	'provider'       => 'claude',
 
@@ -59,9 +63,17 @@ $settings['ai'] = array(
 	'openai_api_key' => '',                    // sk-...
 	'openai_model'   => 'gpt-4o',             // default model
 
-	// Shared
+	// Shared generation settings
 	'max_tokens'      => 1024,
 	'timeout_seconds' => 60,    // max. seconds to wait for an AI API response
+
+	// Rate limiting per OAuth user (admin users are exempt)
+	// Requires sql/patches/047_ai_log_table.sql to be applied first.
+	'calls_per_hour'    => 20,   // max. AI calls per user per hour  (0 = unlimited)
+	'calls_per_day'     => 100,  // max. AI calls per user per day   (0 = unlimited)
+
+	// Cost cap: max. output tokens generated per user per calendar day (0 = unlimited)
+	'daily_token_limit' => 0,
 );
 
 // email SMTP and queueing configuration for emails sent by the formr app itself

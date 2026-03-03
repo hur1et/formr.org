@@ -238,6 +238,13 @@ class ApiHelper {
             return $this;
         }
 
+        // --- Access check: toggle / rate-limit / token cap ---
+
+        if ($error = $this->checkAIAccess()) {
+            $this->setData($error['code'], $error['text'], null, $error['desc']);
+            return $this;
+        }
+
         // --- Dispatch to AI provider ---
 
         $config = Config::get('ai', array());
@@ -256,6 +263,7 @@ class ApiHelper {
         try {
             $ai     = new AIService($config);
             $result = $ai->complete($prompt, $options);
+            $this->logAICall($result);
             $this->setData(Response::STATUS_OK, 'OK', $result);
         } catch (Exception $e) {
             formr_log_exception($e, 'AI');
@@ -276,6 +284,11 @@ class ApiHelper {
      * @return $this
      */
     public function aiModels() {
+        if (!Config::get('ai.enabled', true)) {
+            $this->setData(503, 'Service Unavailable', null, 'AI feature is currently disabled');
+            return $this;
+        }
+
         try {
             $ai = AIService::getInstance();
             $this->setData(Response::STATUS_OK, 'OK', array(
@@ -324,6 +337,102 @@ class ApiHelper {
         }
 
         return $run;
+    }
+
+    /**
+     * Check whether the current user may call the AI endpoint.
+     * Enforces the global on/off toggle, per-user rate limits, and daily token cap.
+     * Admin users (isAdmin() === true) bypass rate-limit and token-cap checks.
+     *
+     * @return array|null  null on success; array('code','text','desc') on denial
+     */
+    private function checkAIAccess() {
+        // 1. Global admin toggle
+        if (!Config::get('ai.enabled', true)) {
+            return array('code' => 503, 'text' => 'Service Unavailable',
+                         'desc' => 'AI feature is currently disabled');
+        }
+
+        // 2. Admin users are exempt from rate limits and token caps
+        if ($this->user && $this->user->isAdmin()) {
+            return null;
+        }
+
+        if (!$this->user || !$this->user->id) {
+            return null; // unauthenticated case is handled upstream by OAuth
+        }
+
+        $aiConfig = Config::get('ai', array());
+        $callsPerHour    = (int) array_val($aiConfig, 'calls_per_hour', 20);
+        $callsPerDay     = (int) array_val($aiConfig, 'calls_per_day', 100);
+        $dailyTokenLimit = (int) array_val($aiConfig, 'daily_token_limit', 0);
+
+        // Single query covers today's calls (hour window + day window + token sum)
+        $sql = 'SELECT
+                    SUM(CASE WHEN created > DATE_SUB(NOW(), INTERVAL 1 HOUR) THEN 1 ELSE 0 END) AS calls_last_hour,
+                    COUNT(*) AS calls_today,
+                    COALESCE(SUM(output_tokens), 0) AS tokens_today
+                FROM survey_ai_log
+                WHERE user_id = :user_id AND created >= CURDATE()';
+
+        try {
+            $stmt = $this->db->rquery($sql, array(':user_id' => $this->user->id));
+            $row  = $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            // Fall back gracefully if table not yet migrated
+            formr_log_exception($e, 'AI_RATELIMIT');
+            return null;
+        }
+
+        if (!$row) {
+            return null;
+        }
+
+        // 3. Hourly call limit
+        if ($callsPerHour > 0 && (int) $row['calls_last_hour'] >= $callsPerHour) {
+            return array('code' => 429, 'text' => 'Too Many Requests',
+                         'desc' => 'Hourly AI request limit reached (' . $callsPerHour . '/h). Try again later.');
+        }
+
+        // 4. Daily call limit
+        if ($callsPerDay > 0 && (int) $row['calls_today'] >= $callsPerDay) {
+            return array('code' => 429, 'text' => 'Too Many Requests',
+                         'desc' => 'Daily AI request limit reached (' . $callsPerDay . '/day). Try again tomorrow.');
+        }
+
+        // 5. Daily token cap
+        if ($dailyTokenLimit > 0 && (int) $row['tokens_today'] >= $dailyTokenLimit) {
+            return array('code' => 429, 'text' => 'Too Many Requests',
+                         'desc' => 'Daily token limit reached (' . $dailyTokenLimit . ' output tokens/day).');
+        }
+
+        return null;
+    }
+
+    /**
+     * Log a successful AI API call to survey_ai_log.
+     * Requires sql/patches/047_ai_log_table.sql to have been applied.
+     *
+     * @param array $result  The result array returned by AIService::complete()
+     */
+    private function logAICall(array $result) {
+        if (!$this->user || !$this->user->id) {
+            return;
+        }
+
+        try {
+            $this->db->insert('survey_ai_log', array(
+                'user_id'       => $this->user->id,
+                'provider'      => array_val($result, 'provider', ''),
+                'model'         => array_val($result, 'model', ''),
+                'input_tokens'  => (int) array_val($result, 'input_tokens', 0),
+                'output_tokens' => (int) array_val($result, 'output_tokens', 0),
+                'created'       => date('Y-m-d H:i:s'),
+            ));
+        } catch (Exception $e) {
+            // Non-fatal: log the failure but do not fail the response
+            formr_log_exception($e, 'AI_LOG');
+        }
     }
 
     private function setData($statusCode = null, $statusText = null, $response = null, $error = null) {

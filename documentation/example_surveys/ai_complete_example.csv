@@ -1,0 +1,48 @@
+type,name,label,hint,showif,class,value
+note,intro,"## AI Research Assistant
+
+This survey demonstrates how to call the formr AI API from within a survey.
+Enter any question or topic below and the language model will generate a short answer.
+
+**Note:** The AI endpoint requires an OAuth access token. Contact your formr admin to enable this feature (`$settings['ai']['enabled'] = true`).",,,
+text,user_topic,"What topic or question would you like to explore?","Type a question, e.g. »What causes stress?« or »Summarise attachment theory.«",,,
+note,ai_loading,"*Generating AI response — please wait…*",,!is.na(value('user_topic')),hidden,
+html,ai_result,"<div id=""ai-result-box"" style=""background:#f8f9fa;border:1px solid #dee2e6;border-radius:4px;padding:1rem;margin-top:1rem;"">
+  <p id=""ai-output"" style=""white-space:pre-wrap;""><em>Click »Generate« to see the AI response.</em></p>
+  <button id=""ai-btn"" type=""button"" class=""btn btn-primary"" style=""margin-top:.5rem;"">Generate</button>
+</div>
+<script>
+(function () {
+  var btn    = document.getElementById('ai-btn');
+  var output = document.getElementById('ai-output');
+
+  btn.addEventListener('click', function () {
+    var topic = document.querySelector('[name=""user_topic""]');
+    var prompt = topic ? topic.value.trim() : '';
+    if (!prompt) { output.textContent = 'Please fill in the topic first.'; return; }
+
+    btn.disabled    = true;
+    output.textContent = 'Generating…';
+
+    /* formr exposes the current OAuth token as window.formr_access_token */
+    var token = (typeof formr_access_token !== 'undefined') ? formr_access_token : '';
+
+    fetch('/api/post/ai-complete', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ access_token: token, prompt: 'Answer briefly: ' + prompt })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data && data.response && data.response.text) {
+        output.textContent = data.response.text;
+      } else {
+        output.textContent = 'Error: ' + (data && data.response && data.response.error_description
+          ? data.response.error_description : 'Unknown error');
+      }
+    })
+    .catch(function(err) { output.textContent = 'Network error: ' + err.message; })
+    .finally(function() { btn.disabled = false; });
+  });
+}());
+</script>","JavaScript calls POST /api/post/ai-complete with the current OAuth token.",!is.na(value('user_topic')),,
