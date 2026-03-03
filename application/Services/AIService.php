@@ -6,12 +6,13 @@
  *
  * Configuration (config/settings.php):
  *   $settings['ai'] = array(
- *       'provider'       => 'claude',               // 'claude' or 'openai'
- *       'claude_api_key' => 'sk-ant-...',
- *       'claude_model'   => 'claude-sonnet-4-6',
- *       'openai_api_key' => 'sk-...',
- *       'openai_model'   => 'gpt-4o',
- *       'max_tokens'     => 1024,
+ *       'provider'         => 'claude',               // 'claude' or 'openai'
+ *       'claude_api_key'   => 'sk-ant-...',
+ *       'claude_model'     => 'claude-sonnet-4-6',
+ *       'openai_api_key'   => 'sk-...',
+ *       'openai_model'     => 'gpt-4o',
+ *       'max_tokens'       => 1024,
+ *       'timeout_seconds'  => 60,                     // AI-API request timeout
  *   );
  *
  * Usage:
@@ -23,6 +24,9 @@ class AIService {
 
     const PROVIDER_CLAUDE = 'claude';
     const PROVIDER_OPENAI = 'openai';
+
+    /** Absolute upper bound for prompt length (~8k tokens safety cap). */
+    const MAX_PROMPT_LENGTH = 32000;
 
     /** @var AIClaudeProvider|AIOpenAIProvider */
     private $provider;
@@ -97,18 +101,20 @@ class AIService {
  */
 class AIClaudeProvider {
 
-    const API_URL     = 'https://api.anthropic.com/v1/messages';
-    const API_VERSION = '2023-06-01';
+    const API_URL       = 'https://api.anthropic.com/v1/messages';
+    const API_VERSION   = '2023-06-01';
     const DEFAULT_MODEL = 'claude-sonnet-4-6';
 
     private $apiKey;
     private $model;
     private $maxTokens;
+    private $timeout;
 
     public function __construct(array $config) {
-        $this->apiKey   = array_val($config, 'claude_api_key', '');
+        $this->apiKey    = array_val($config, 'claude_api_key', '');
         $this->model     = array_val($config, 'claude_model', self::DEFAULT_MODEL);
         $this->maxTokens = (int) array_val($config, 'max_tokens', 1024);
+        $this->timeout   = (int) array_val($config, 'timeout_seconds', 60);
     }
 
     public function complete($prompt, array $options = array()) {
@@ -128,6 +134,7 @@ class AIClaudeProvider {
         ));
 
         $curlOptions = array(
+            CURLOPT_TIMEOUT    => $this->timeout,
             CURLOPT_HTTPHEADER => array(
                 'Content-Type: application/json',
                 'x-api-key: ' . $this->apiKey,
@@ -139,13 +146,22 @@ class AIClaudeProvider {
         $raw  = CURL::HttpRequest(self::API_URL, $body, CURL::HTTP_METHOD_POST, $curlOptions, $info);
         $data = json_decode($raw, true);
 
+        if ($data === null) {
+            throw new Exception('Claude API returned invalid JSON (HTTP ' . $info['http_code'] . ')');
+        }
+
         if ($info['http_code'] !== 200) {
             $errorMsg = !empty($data['error']['message']) ? $data['error']['message'] : 'Unknown Claude API error';
             throw new Exception('Claude API error (HTTP ' . $info['http_code'] . '): ' . $errorMsg);
         }
 
+        $text = isset($data['content'][0]['text']) ? $data['content'][0]['text'] : '';
+        if (empty($text)) {
+            throw new Exception('Claude API returned an empty response text');
+        }
+
         return array(
-            'text'          => isset($data['content'][0]['text']) ? $data['content'][0]['text'] : '',
+            'text'          => $text,
             'model'         => isset($data['model']) ? $data['model'] : $model,
             'provider'      => AIService::PROVIDER_CLAUDE,
             'input_tokens'  => isset($data['usage']['input_tokens'])  ? $data['usage']['input_tokens']  : null,
@@ -174,11 +190,13 @@ class AIOpenAIProvider {
     private $apiKey;
     private $model;
     private $maxTokens;
+    private $timeout;
 
     public function __construct(array $config) {
         $this->apiKey    = array_val($config, 'openai_api_key', '');
         $this->model     = array_val($config, 'openai_model', self::DEFAULT_MODEL);
         $this->maxTokens = (int) array_val($config, 'max_tokens', 1024);
+        $this->timeout   = (int) array_val($config, 'timeout_seconds', 60);
     }
 
     public function complete($prompt, array $options = array()) {
@@ -198,6 +216,7 @@ class AIOpenAIProvider {
         ));
 
         $curlOptions = array(
+            CURLOPT_TIMEOUT    => $this->timeout,
             CURLOPT_HTTPHEADER => array(
                 'Content-Type: application/json',
                 'Authorization: Bearer ' . $this->apiKey,
@@ -208,13 +227,22 @@ class AIOpenAIProvider {
         $raw  = CURL::HttpRequest(self::API_URL, $body, CURL::HTTP_METHOD_POST, $curlOptions, $info);
         $data = json_decode($raw, true);
 
+        if ($data === null) {
+            throw new Exception('OpenAI API returned invalid JSON (HTTP ' . $info['http_code'] . ')');
+        }
+
         if ($info['http_code'] !== 200) {
             $errorMsg = !empty($data['error']['message']) ? $data['error']['message'] : 'Unknown OpenAI API error';
             throw new Exception('OpenAI API error (HTTP ' . $info['http_code'] . '): ' . $errorMsg);
         }
 
+        $text = isset($data['choices'][0]['message']['content']) ? $data['choices'][0]['message']['content'] : '';
+        if (empty($text)) {
+            throw new Exception('OpenAI API returned an empty response text');
+        }
+
         return array(
-            'text'          => isset($data['choices'][0]['message']['content']) ? $data['choices'][0]['message']['content'] : '',
+            'text'          => $text,
             'model'         => isset($data['model']) ? $data['model'] : $model,
             'provider'      => AIService::PROVIDER_OPENAI,
             'input_tokens'  => isset($data['usage']['prompt_tokens'])     ? $data['usage']['prompt_tokens']     : null,

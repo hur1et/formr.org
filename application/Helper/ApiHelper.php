@@ -191,15 +191,54 @@ class ApiHelper {
         $raw  = file_get_contents('php://input');
         $json = !empty($raw) ? json_decode($raw, true) : null;
 
-        $prompt    = $json ? array_val($json, 'prompt', '')    : $this->request->str('prompt', '');
-        $provider  = $json ? array_val($json, 'provider', '')  : $this->request->str('provider', '');
-        $model     = $json ? array_val($json, 'model', '')     : $this->request->str('model', '');
+        $prompt    = $json ? array_val($json, 'prompt', '')         : $this->request->str('prompt', '');
+        $provider  = $json ? array_val($json, 'provider', '')        : $this->request->str('provider', '');
+        $model     = $json ? array_val($json, 'model', '')           : $this->request->str('model', '');
         $maxTokens = $json ? (int) array_val($json, 'max_tokens', 0) : $this->request->int('max_tokens', 0);
+        $minLength = $json ? (int) array_val($json, 'min_length', 0) : $this->request->int('min_length', 0);
+        $maxLength = $json ? (int) array_val($json, 'max_length', 0) : $this->request->int('max_length', 0);
+
+        // --- Input validation ---
 
         if (empty($prompt)) {
             $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null, 'Required parameter "prompt" is missing');
             return $this;
         }
+
+        $validProviders = array(AIService::PROVIDER_CLAUDE, AIService::PROVIDER_OPENAI);
+        if (!empty($provider) && !in_array($provider, $validProviders, true)) {
+            $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null,
+                'Invalid provider. Allowed values: ' . implode(', ', $validProviders));
+            return $this;
+        }
+
+        if ($maxTokens > 0 && $maxTokens > 4096) {
+            $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null,
+                'max_tokens must not exceed 4096');
+            return $this;
+        }
+
+        $promptLen = mb_strlen($prompt);
+
+        if ($promptLen > AIService::MAX_PROMPT_LENGTH) {
+            $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null,
+                'Prompt exceeds the maximum length of ' . AIService::MAX_PROMPT_LENGTH . ' characters');
+            return $this;
+        }
+
+        if ($minLength > 0 && $promptLen < $minLength) {
+            $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null,
+                'Prompt is too short (minimum ' . $minLength . ' characters, got ' . $promptLen . ')');
+            return $this;
+        }
+
+        if ($maxLength > 0 && $promptLen > $maxLength) {
+            $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null,
+                'Prompt exceeds the allowed maximum of ' . $maxLength . ' characters (got ' . $promptLen . ')');
+            return $this;
+        }
+
+        // --- Dispatch to AI provider ---
 
         $config = Config::get('ai', array());
         if (!empty($provider)) {

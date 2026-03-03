@@ -60,7 +60,8 @@ $settings['ai'] = array(
 	'openai_model'   => 'gpt-4o',             // default model
 
 	// Shared
-	'max_tokens'     => 1024,
+	'max_tokens'      => 1024,
+	'timeout_seconds' => 60,    // max. seconds to wait for an AI API response
 );
 
 // email SMTP and queueing configuration for emails sent by the formr app itself
