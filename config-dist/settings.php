@@ -43,6 +43,26 @@ $settings['alternative_opencpu_instance'] = array(
 	'r_lib_path' => '/usr/local/lib/R/site-library'
 );
 
+// AI / LLM settings (used by AIService)
+// Supported providers: 'claude' (Anthropic) and 'openai'
+// API endpoint: POST /api/post/ai-complete  (requires OAuth token)
+//               GET  /api/get/ai-models
+$settings['ai'] = array(
+	// Active provider: 'claude' or 'openai'
+	'provider'       => 'claude',
+
+	// Anthropic Claude
+	'claude_api_key' => '',                    // sk-ant-...
+	'claude_model'   => 'claude-sonnet-4-6',  // default model
+
+	// OpenAI
+	'openai_api_key' => '',                    // sk-...
+	'openai_model'   => 'gpt-4o',             // default model
+
+	// Shared
+	'max_tokens'     => 1024,
+);
+
 // email SMTP and queueing configuration for emails sent by the formr app itself
 // for example for email confirmation and password reset
 $settings['email'] = array(

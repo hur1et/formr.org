@@ -167,6 +167,90 @@ class ApiHelper {
         return $this;
     }
 
+    /**
+     * POST /api/post/ai-complete
+     *
+     * Send a prompt to the configured AI provider (Claude or OpenAI) and
+     * return the generated text.
+     *
+     * Accepts JSON body or plain POST parameters:
+     *   prompt      (string, required)  The prompt / user message
+     *   provider    (string, optional)  Override config: 'claude' or 'openai'
+     *   model       (string, optional)  Override default model for the provider
+     *   max_tokens  (int,    optional)  Override default max_tokens
+     *
+     * Example curl:
+     *   curl -X POST https://formr.org/api/post/ai-complete \
+     *        -H 'Content-Type: application/json' \
+     *        -d '{"access_token":"TOKEN","prompt":"What is 2+2?"}'
+     *
+     * @return $this
+     */
+    public function aiComplete() {
+        // Accept both JSON body and plain POST params
+        $raw  = file_get_contents('php://input');
+        $json = !empty($raw) ? json_decode($raw, true) : null;
+
+        $prompt    = $json ? array_val($json, 'prompt', '')    : $this->request->str('prompt', '');
+        $provider  = $json ? array_val($json, 'provider', '')  : $this->request->str('provider', '');
+        $model     = $json ? array_val($json, 'model', '')     : $this->request->str('model', '');
+        $maxTokens = $json ? (int) array_val($json, 'max_tokens', 0) : $this->request->int('max_tokens', 0);
+
+        if (empty($prompt)) {
+            $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null, 'Required parameter "prompt" is missing');
+            return $this;
+        }
+
+        $config = Config::get('ai', array());
+        if (!empty($provider)) {
+            $config['provider'] = $provider;
+        }
+
+        $options = array();
+        if (!empty($model)) {
+            $options['model'] = $model;
+        }
+        if ($maxTokens > 0) {
+            $options['max_tokens'] = $maxTokens;
+        }
+
+        try {
+            $ai     = new AIService($config);
+            $result = $ai->complete($prompt, $options);
+            $this->setData(Response::STATUS_OK, 'OK', $result);
+        } catch (Exception $e) {
+            formr_log_exception($e, 'AI');
+            $this->setData(Response::STATUS_INTERNAL_SERVER_ERROR, 'Internal Server Error', null, $e->getMessage());
+        }
+
+        return $this;
+    }
+
+    /**
+     * GET /api/get/ai-models
+     *
+     * Return the active provider and its available model identifiers.
+     *
+     * Example curl:
+     *   curl "https://formr.org/api/get/ai-models?access_token=TOKEN"
+     *
+     * @return $this
+     */
+    public function aiModels() {
+        try {
+            $ai = AIService::getInstance();
+            $this->setData(Response::STATUS_OK, 'OK', array(
+                'provider' => $ai->getProviderName(),
+                'models'   => $ai->getModels(),
+            ));
+        } catch (Exception $e) {
+            formr_log_exception($e, 'AI');
+            $this->setData(Response::STATUS_INTERNAL_SERVER_ERROR, 'Internal Server Error', null, $e->getMessage());
+        }
+
+        return $this;
+    }
+
     public function getData() {
         return $this->data;
     }

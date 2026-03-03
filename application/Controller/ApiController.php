@@ -167,8 +167,8 @@ class ApiController extends Controller {
     protected function isValidAction($type, $action) {
         $actions = array(
             'oauth' => array('authorize', 'access_token'),
-            'post' => array('create-session', 'end-last-external'),
-            'get' => array('results'),
+            'post' => array('create-session', 'end-last-external', 'ai-complete'),
+            'get' => array('results', 'ai-models'),
         );
 
         return isset($actions[$type]) && in_array($action, $actions[$type]);
