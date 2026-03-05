@@ -119,20 +119,31 @@ class AIClaudeProvider {
 
     public function complete($prompt, array $options = array()) {
         if (empty($this->apiKey)) {
-            throw new Exception('Claude API key is not configured (set $settings[\'ai\'][\'claude_api_key\'])');
+            throw new Exception('Claude API key is not configured');
         }
-
-        $model     = array_val($options, 'model', $this->model);
-        $maxTokens = (int) array_val($options, 'max_tokens', $this->maxTokens);
-
-        $body = json_encode(array(
+        $model        = array_val($options, 'model',         $this->model);
+        $maxTokens    = (int) array_val($options, 'max_tokens',    $this->maxTokens);
+        $systemPrompt = array_val($options, 'system_prompt', '');
+        $history      = array_val($options, 'messages',      null);
+        $messages = array();
+        if (!empty($history) && is_array($history)) {
+            $messages = $history;
+        }
+        if (!empty($prompt)) {
+            $messages[] = array('role' => 'user', 'content' => $prompt);
+        }
+        if (empty($messages)) {
+            throw new Exception('No prompt or messages provided');
+        }
+        $requestBody = array(
             'model'      => $model,
             'max_tokens' => $maxTokens,
-            'messages'   => array(
-                array('role' => 'user', 'content' => $prompt),
-            ),
-        ));
-
+            'messages'   => $messages,
+        );
+        if (!empty($systemPrompt)) {
+            $requestBody['system'] = $systemPrompt;
+        }
+        $body = json_encode($requestBody);
         $curlOptions = array(
             CURLOPT_TIMEOUT    => $this->timeout,
             CURLOPT_HTTPHEADER => array(
@@ -141,25 +152,20 @@ class AIClaudeProvider {
                 'anthropic-version: ' . self::API_VERSION,
             ),
         );
-
         $info = null;
         $raw  = CURL::HttpRequest(self::API_URL, $body, CURL::HTTP_METHOD_POST, $curlOptions, $info);
         $data = json_decode($raw, true);
-
         if ($data === null) {
             throw new Exception('Claude API returned invalid JSON (HTTP ' . $info['http_code'] . ')');
         }
-
         if ($info['http_code'] !== 200) {
             $errorMsg = !empty($data['error']['message']) ? $data['error']['message'] : 'Unknown Claude API error';
             throw new Exception('Claude API error (HTTP ' . $info['http_code'] . '): ' . $errorMsg);
         }
-
         $text = isset($data['content'][0]['text']) ? $data['content'][0]['text'] : '';
         if (empty($text)) {
             throw new Exception('Claude API returned an empty response text');
         }
-
         return array(
             'text'          => $text,
             'model'         => isset($data['model']) ? $data['model'] : $model,
@@ -201,20 +207,30 @@ class AIOpenAIProvider {
 
     public function complete($prompt, array $options = array()) {
         if (empty($this->apiKey)) {
-            throw new Exception('OpenAI API key is not configured (set $settings[\'ai\'][\'openai_api_key\'])');
+            throw new Exception('OpenAI API key is not configured');
         }
-
-        $model     = array_val($options, 'model', $this->model);
-        $maxTokens = (int) array_val($options, 'max_tokens', $this->maxTokens);
-
+        $model        = array_val($options, 'model',         $this->model);
+        $maxTokens    = (int) array_val($options, 'max_tokens',    $this->maxTokens);
+        $systemPrompt = array_val($options, 'system_prompt', '');
+        $history      = array_val($options, 'messages',      null);
+        $messages = array();
+        if (!empty($systemPrompt)) {
+            $messages[] = array('role' => 'system', 'content' => $systemPrompt);
+        }
+        if (!empty($history) && is_array($history)) {
+            foreach ($history as $msg) $messages[] = $msg;
+        }
+        if (!empty($prompt)) {
+            $messages[] = array('role' => 'user', 'content' => $prompt);
+        }
+        if (empty($messages)) {
+            throw new Exception('No prompt or messages provided');
+        }
         $body = json_encode(array(
             'model'      => $model,
             'max_tokens' => $maxTokens,
-            'messages'   => array(
-                array('role' => 'user', 'content' => $prompt),
-            ),
+            'messages'   => $messages,
         ));
-
         $curlOptions = array(
             CURLOPT_TIMEOUT    => $this->timeout,
             CURLOPT_HTTPHEADER => array(
@@ -222,25 +238,20 @@ class AIOpenAIProvider {
                 'Authorization: Bearer ' . $this->apiKey,
             ),
         );
-
         $info = null;
         $raw  = CURL::HttpRequest(self::API_URL, $body, CURL::HTTP_METHOD_POST, $curlOptions, $info);
         $data = json_decode($raw, true);
-
         if ($data === null) {
             throw new Exception('OpenAI API returned invalid JSON (HTTP ' . $info['http_code'] . ')');
         }
-
         if ($info['http_code'] !== 200) {
             $errorMsg = !empty($data['error']['message']) ? $data['error']['message'] : 'Unknown OpenAI API error';
             throw new Exception('OpenAI API error (HTTP ' . $info['http_code'] . '): ' . $errorMsg);
         }
-
         $text = isset($data['choices'][0]['message']['content']) ? $data['choices'][0]['message']['content'] : '';
         if (empty($text)) {
             throw new Exception('OpenAI API returned an empty response text');
         }
-
         return array(
             'text'          => $text,
             'model'         => isset($data['model']) ? $data['model'] : $model,

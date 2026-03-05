@@ -187,89 +187,73 @@ class ApiHelper {
      * @return $this
      */
     public function aiComplete() {
-        // Accept both JSON body and plain POST params
         $raw  = file_get_contents('php://input');
         $json = !empty($raw) ? json_decode($raw, true) : null;
-
-        $prompt    = $json ? array_val($json, 'prompt', '')         : $this->request->str('prompt', '');
-        $provider  = $json ? array_val($json, 'provider', '')        : $this->request->str('provider', '');
-        $model     = $json ? array_val($json, 'model', '')           : $this->request->str('model', '');
-        $maxTokens = $json ? (int) array_val($json, 'max_tokens', 0) : $this->request->int('max_tokens', 0);
-        $minLength = $json ? (int) array_val($json, 'min_length', 0) : $this->request->int('min_length', 0);
-        $maxLength = $json ? (int) array_val($json, 'max_length', 0) : $this->request->int('max_length', 0);
-
-        // --- Input validation ---
-
-        if (empty($prompt)) {
-            $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null, 'Required parameter "prompt" is missing');
+        $prompt       = $json ? array_val($json, 'prompt', '')        : $this->request->str('prompt', '');
+        $messages     = $json ? array_val($json, 'messages', null)    : null;
+        $systemPrompt = $json ? array_val($json, 'system_prompt', '') : '';
+        $provider     = $json ? array_val($json, 'provider', '')      : $this->request->str('provider', '');
+        $model        = $json ? array_val($json, 'model', '')         : $this->request->str('model', '');
+        $maxTokens    = $json ? (int) array_val($json, 'max_tokens', 0) : $this->request->int('max_tokens', 0);
+        if (empty($prompt) && empty($messages)) {
+            $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null,
+                'Required parameter "prompt" (or "messages") is missing');
             return $this;
         }
-
+        if (!empty($messages)) {
+            if (!is_array($messages)) {
+                $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null,
+                    '"messages" must be an array of {role, content} objects');
+                return $this;
+            }
+            foreach ($messages as $msg) {
+                if (empty($msg['role']) || !in_array($msg['role'], array('user', 'assistant'), true)
+                    || !isset($msg['content'])) {
+                    $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null,
+                        'Each message must have "role" (user|assistant) and "content"');
+                    return $this;
+                }
+            }
+        }
         $validProviders = array(AIService::PROVIDER_CLAUDE, AIService::PROVIDER_OPENAI);
         if (!empty($provider) && !in_array($provider, $validProviders, true)) {
             $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null,
                 'Invalid provider. Allowed values: ' . implode(', ', $validProviders));
             return $this;
         }
-
         if ($maxTokens > 0 && $maxTokens > 4096) {
-            $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null,
-                'max_tokens must not exceed 4096');
+            $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null, 'max_tokens must not exceed 4096');
             return $this;
         }
-
-        $promptLen = mb_strlen($prompt);
-
-        if ($promptLen > AIService::MAX_PROMPT_LENGTH) {
+        if (!empty($prompt) && mb_strlen($prompt) > AIService::MAX_PROMPT_LENGTH) {
             $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null,
                 'Prompt exceeds the maximum length of ' . AIService::MAX_PROMPT_LENGTH . ' characters');
             return $this;
         }
-
-        if ($minLength > 0 && $promptLen < $minLength) {
-            $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null,
-                'Prompt is too short (minimum ' . $minLength . ' characters, got ' . $promptLen . ')');
-            return $this;
-        }
-
-        if ($maxLength > 0 && $promptLen > $maxLength) {
-            $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null,
-                'Prompt exceeds the allowed maximum of ' . $maxLength . ' characters (got ' . $promptLen . ')');
-            return $this;
-        }
-
-        // --- Access check: toggle / rate-limit / token cap ---
-
         if ($error = $this->checkAIAccess()) {
             $this->setData($error['code'], $error['text'], null, $error['desc']);
             return $this;
         }
-
-        // --- Dispatch to AI provider ---
-
         $config = Config::get('ai', array());
-        if (!empty($provider)) {
-            $config['provider'] = $provider;
-        }
-
+        if (!empty($provider)) $config['provider'] = $provider;
         $options = array();
-        if (!empty($model)) {
-            $options['model'] = $model;
-        }
-        if ($maxTokens > 0) {
-            $options['max_tokens'] = $maxTokens;
-        }
-
+        if (!empty($model))        $options['model']         = $model;
+        if ($maxTokens > 0)        $options['max_tokens']    = $maxTokens;
+        if (!empty($systemPrompt)) $options['system_prompt'] = $systemPrompt;
+        if (!empty($messages))     $options['messages']      = $messages;
         try {
             $ai     = new AIService($config);
             $result = $ai->complete($prompt, $options);
-            $this->logAICall($result);
+            $conversationForLog = array();
+            if (!empty($messages)) $conversationForLog = $messages;
+            if (!empty($prompt))   $conversationForLog[] = array('role' => 'user',      'content' => $prompt);
+            $conversationForLog[]  = array('role' => 'assistant', 'content' => $result['text']);
+            $this->logAICall($result, $prompt, $conversationForLog);
             $this->setData(Response::STATUS_OK, 'OK', $result);
         } catch (Exception $e) {
             formr_log_exception($e, 'AI');
             $this->setData(Response::STATUS_INTERNAL_SERVER_ERROR, 'Internal Server Error', null, $e->getMessage());
         }
-
         return $this;
     }
 
@@ -409,28 +393,35 @@ class ApiHelper {
         return null;
     }
 
-    /**
-     * Log a successful AI API call to survey_ai_log.
-     * Requires sql/patches/047_ai_log_table.sql to have been applied.
-     *
-     * @param array $result  The result array returned by AIService::complete()
-     */
-    private function logAICall(array $result) {
+    private function logAICall(array $result, $prompt = '', array $conversation = array()) {
         if (!$this->user || !$this->user->id) {
             return;
         }
-
+        $conversationJson = null;
+        if (!empty($conversation)) {
+            $encoded = json_encode($conversation, JSON_UNESCAPED_UNICODE);
+            if ($encoded !== false && strlen($encoded) <= 1048576) {
+                $conversationJson = $encoded;
+            } elseif ($encoded !== false) {
+                $conversationJson = json_encode(array_slice($conversation, -20), JSON_UNESCAPED_UNICODE);
+            }
+        }
+        $promptText   = mb_substr((string) $prompt,         0, 60000, 'UTF-8');
+        $responseText = mb_substr((string) $result['text'], 0, 60000, 'UTF-8');
         try {
             $this->db->insert('survey_ai_log', array(
-                'user_id'       => $this->user->id,
-                'provider'      => array_val($result, 'provider', ''),
-                'model'         => array_val($result, 'model', ''),
-                'input_tokens'  => (int) array_val($result, 'input_tokens', 0),
-                'output_tokens' => (int) array_val($result, 'output_tokens', 0),
-                'created'       => date('Y-m-d H:i:s'),
+                'user_id'           => $this->user->id,
+                'session_token'     => '',
+                'provider'          => array_val($result, 'provider', ''),
+                'model'             => array_val($result, 'model',    ''),
+                'input_tokens'      => (int) array_val($result, 'input_tokens',  0),
+                'output_tokens'     => (int) array_val($result, 'output_tokens', 0),
+                'prompt_text'       => $promptText,
+                'response_text'     => $responseText,
+                'conversation_json' => $conversationJson,
+                'created'           => date('Y-m-d H:i:s'),
             ));
         } catch (Exception $e) {
-            // Non-fatal: log the failure but do not fail the response
             formr_log_exception($e, 'AI_LOG');
         }
     }
