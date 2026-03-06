@@ -30,7 +30,17 @@ export function initializeAiChatWidgets() {
         }
     });
 
-    $('.item-ai-chat').each(function () {
+    // Prevent Enter from submitting the form when focused inside any chat input.
+    // This delegate handler fires even before widget-level handlers are initialised.
+    $form.on('keydown.aichat', '.ai-chat-input', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    });
+
+    // item-ai_chat: underscore because PHP $type = 'ai_chat' → class = 'item-ai_chat'
+    $('.item-ai_chat').each(function () {
         var $group   = $(this);
         var $widget  = $group.find('.ai-chat-widget');
         var $log     = $widget.find('.ai-chat-log');
