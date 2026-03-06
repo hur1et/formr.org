@@ -496,16 +496,23 @@ class RunController extends Controller {
         if (!empty($messages))     $options['messages']      = $messages;
         if (!empty($systemPrompt)) $options['system_prompt'] = $systemPrompt;
 
+        // AI-Call — bei Fehler sofort JSON-500 zurückgeben
         try {
             $ai     = AIService::getInstance();
             $result = $ai->complete($prompt, $options);
+        } catch (Throwable $e) {
+            formr_log_exception($e, 'AI_RUN');
+            $this->sendJsonResponse(array('error' => $e->getMessage()), 500);
+            return;
+        }
 
+        // DB-Logging — nicht-fatal: fehlende Tabelle/Spalte darf Antwort nicht blockieren
+        try {
             $conversationForLog = array();
             if (!empty($messages))  $conversationForLog = $messages;
             if (!empty($prompt))    $conversationForLog[] = array('role' => 'user',      'content' => $prompt);
             $conversationForLog[]   = array('role' => 'assistant', 'content' => $result['text']);
             $convJson = json_encode($conversationForLog, JSON_UNESCAPED_UNICODE);
-
             $this->db->insert('survey_ai_log', array(
                 'user_id'           => 0,
                 'session_token'     => $session->session,
@@ -518,11 +525,10 @@ class RunController extends Controller {
                 'conversation_json' => strlen($convJson) <= 1048576 ? $convJson : null,
                 'created'           => date('Y-m-d H:i:s'),
             ));
-
-            $this->sendJsonResponse($result);
-        } catch (Exception $e) {
-            formr_log_exception($e, 'AI_RUN');
-            $this->sendJsonResponse(array('error' => $e->getMessage()), 500);
+        } catch (Throwable $logErr) {
+            formr_log_exception($logErr, 'AI_LOG');
         }
+
+        $this->sendJsonResponse($result);
     }
 }

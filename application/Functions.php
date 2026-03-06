@@ -18,7 +18,7 @@ function formr_log($msg, $type = '') {// shorthand
     error_log($msg . "\n", 3, get_log_file('errors.log'));
 }
 
-function formr_log_exception(Exception $e, $prefix = '', $debug_data = null) {
+function formr_log_exception(Throwable $e, $prefix = '', $debug_data = null) {
     $msg = $prefix . ' Exception: ' . $e->getMessage() . "\n" . $e->getTraceAsString();
     formr_log($msg);
     if ($debug_data !== null) {
