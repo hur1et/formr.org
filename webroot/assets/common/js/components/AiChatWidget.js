@@ -1,13 +1,34 @@
 import $ from 'jquery';
 
 export function initializeAiChatWidgets() {
-    // Derive the run-relative AJAX URL from the current page path:
-    // URL format: /{base}/run/{run_name}/{session_code}
-    var parts  = window.location.pathname.replace(/^\//, '').split('/');
-    var runIdx = parts.indexOf('run');
-    if (runIdx === -1 || !parts[runIdx + 1]) return;
-    var baseUrl = '/' + parts.slice(0, runIdx + 2).join('/');
-    var aiUrl   = baseUrl + '/ajax_ai_complete';
+    // Derive the AI endpoint from the survey form's action attribute.
+    // The form action is already set to the run URL, e.g. /run/{run_name}/
+    var $form = $('form.main_formr_survey');
+    if (!$form.length) return;
+
+    var formAction = ($form.attr('action') || '').replace(/\/+$/, '');
+    if (!formAction) {
+        // Fallback: parse from window.location
+        var parts  = window.location.pathname.replace(/^\//, '').split('/');
+        var runIdx = parts.indexOf('run');
+        if (runIdx === -1 || !parts[runIdx + 1]) return;
+        formAction = '/' + parts.slice(0, runIdx + 2).join('/');
+    }
+    var aiUrl = formAction + '/ajax_ai_complete';
+
+    // The submit button for the survey form
+    var $nextBtn = $form.find('button[type="submit"]');
+
+    var ajaxInFlight = false;
+
+    // Block form submission entirely while an AJAX call is in flight
+    $form.on('submit.aichat', function (e) {
+        if (ajaxInFlight) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return false;
+        }
+    });
 
     $('.item-ai-chat').each(function () {
         var $group   = $(this);
@@ -16,7 +37,6 @@ export function initializeAiChatWidgets() {
         var $input   = $widget.find('.ai-chat-input');
         var $sendBtn = $widget.find('.ai-chat-send');
         var $hidden  = $widget.find('input[type="hidden"]');
-        var $nextBtn = $('form.main_formr_survey .form-group.item-submit button');
         var minTurns = parseInt($widget.data('min-turns'), 10) || 0;
         var maxTurns = parseInt($widget.data('max-turns'), 10) || 0;
         var minWords = parseInt($widget.data('min-words'), 10) || 0;
@@ -59,7 +79,7 @@ export function initializeAiChatWidgets() {
 
         function sendMessage() {
             var text = $input.val().trim();
-            if (!text || $sendBtn.prop('disabled')) return;
+            if (!text || $sendBtn.prop('disabled') || ajaxInFlight) return;
 
             // Word-count validation
             var wc = countWords(text);
@@ -75,6 +95,8 @@ export function initializeAiChatWidgets() {
             appendMessage('user', text);
             $input.val('').prop('disabled', true);
             $sendBtn.prop('disabled', true).text('\u2026');
+            $nextBtn.prop('disabled', true); // keep next-btn locked during AJAX
+            ajaxInFlight = true;
 
             var payload = { prompt: text };
             if (conversation.length) payload.messages = conversation.slice();
@@ -116,6 +138,12 @@ export function initializeAiChatWidgets() {
                 appendMessage('assistant', '[Fehler: ' + err + ']');
                 $input.prop('disabled', false).focus();
                 $sendBtn.prop('disabled', false).text('Senden');
+                // Restore next-btn state on failure
+                if (minTurns === 0 || turnCount >= minTurns) {
+                    $nextBtn.prop('disabled', false).removeAttr('title');
+                }
+            }).always(function () {
+                ajaxInFlight = false;
             });
         }
 
@@ -123,13 +151,14 @@ export function initializeAiChatWidgets() {
         $input.on('keydown', function (e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                e.stopPropagation();
+                e.stopImmediatePropagation();
                 sendMessage();
             }
         });
 
         $sendBtn.on('click', function (e) {
             e.preventDefault();
+            e.stopImmediatePropagation();
             sendMessage();
         });
     });
