@@ -286,6 +286,34 @@
                                 </div>
                                 <div class="clearfix"></div>
 
+                                <h4 class="lead"><i class="fa fa-comments"></i> Chat Defaults (per item, 0 = unlimited/no limit)</h4>
+
+                                <div class="form-group col-md-3">
+                                    <label class="control-label">Min Prompts (Turns)</label>
+                                    <input class="form-control" type="number" name="ai_min_turns" min="0"
+                                        value="<?= (int) array_val($ai_config, 'min_turns', 3) ?>"
+                                        title="Minimum number of exchanges before the participant can proceed">
+                                </div>
+                                <div class="form-group col-md-3">
+                                    <label class="control-label">Max Prompts (Turns)</label>
+                                    <input class="form-control" type="number" name="ai_max_turns" min="0"
+                                        value="<?= (int) array_val($ai_config, 'max_turns', 0) ?>"
+                                        title="Maximum number of exchanges allowed (0 = unlimited)">
+                                </div>
+                                <div class="form-group col-md-3">
+                                    <label class="control-label">Min Words per Prompt</label>
+                                    <input class="form-control" type="number" name="ai_min_words" min="0"
+                                        value="<?= (int) array_val($ai_config, 'min_words', 0) ?>"
+                                        title="Minimum number of words a participant must write per message (0 = no minimum)">
+                                </div>
+                                <div class="form-group col-md-3">
+                                    <label class="control-label">Max Words per Prompt</label>
+                                    <input class="form-control" type="number" name="ai_max_words" min="0"
+                                        value="<?= (int) array_val($ai_config, 'max_words', 0) ?>"
+                                        title="Maximum number of words a participant may write per message (0 = unlimited)">
+                                </div>
+                                <div class="clearfix"></div>
+
                                 <h4 class="lead"><i class="fa fa-tachometer"></i> Rate Limits (per researcher, 0 = unlimited)</h4>
 
                                 <div class="form-group col-md-3">

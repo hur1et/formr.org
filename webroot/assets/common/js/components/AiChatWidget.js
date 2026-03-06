@@ -18,6 +18,9 @@ export function initializeAiChatWidgets() {
         var $hidden  = $widget.find('input[type="hidden"]');
         var $nextBtn = $('form.main_formr_survey .form-group.item-submit button');
         var minTurns = parseInt($widget.data('min-turns'), 10) || 0;
+        var maxTurns = parseInt($widget.data('max-turns'), 10) || 0;
+        var minWords = parseInt($widget.data('min-words'), 10) || 0;
+        var maxWords = parseInt($widget.data('max-words'), 10) || 0;
         var conversation = [];
         var turnCount    = 0;
 
@@ -36,9 +39,38 @@ export function initializeAiChatWidgets() {
             $log[0].scrollTop = $log[0].scrollHeight;
         }
 
+        function appendHint(text) {
+            var $hint = $('<div>').addClass('ai-chat-hint alert alert-warning').text(text);
+            $log.append($hint);
+            $log[0].scrollTop = $log[0].scrollHeight;
+            setTimeout(function () { $hint.fadeOut(400, function () { $hint.remove(); }); }, 3500);
+        }
+
+        function countWords(str) {
+            return str.replace(/\s+/g, ' ').trim().split(' ').filter(function (w) { return w.length > 0; }).length;
+        }
+
+        function lockChat(reason) {
+            $input.prop('disabled', true);
+            $sendBtn.prop('disabled', true);
+            var $notice = $('<div>').addClass('ai-chat-hint alert alert-info').text(reason);
+            $widget.find('.ai-chat-composer').after($notice);
+        }
+
         function sendMessage() {
             var text = $input.val().trim();
             if (!text || $sendBtn.prop('disabled')) return;
+
+            // Word-count validation
+            var wc = countWords(text);
+            if (minWords > 0 && wc < minWords) {
+                appendHint('Bitte schreibe mindestens ' + minWords + ' Wörter (aktuell: ' + wc + ').');
+                return;
+            }
+            if (maxWords > 0 && wc > maxWords) {
+                appendHint('Bitte schreibe höchstens ' + maxWords + ' Wörter (aktuell: ' + wc + ').');
+                return;
+            }
 
             appendMessage('user', text);
             $input.val('').prop('disabled', true);
@@ -68,12 +100,20 @@ export function initializeAiChatWidgets() {
                 if (minTurns > 0 && turnCount >= minTurns) {
                     $nextBtn.prop('disabled', false).removeAttr('title');
                 }
+
+                // Lock when max turns reached
+                if (maxTurns > 0 && turnCount >= maxTurns) {
+                    lockChat('Maximale Gesprächslänge von ' + maxTurns + ' Nachrichten erreicht.');
+                    return; // skip re-enabling input/button below
+                }
+
+                $input.prop('disabled', false).focus();
+                $sendBtn.prop('disabled', false).text('Senden');
             }).fail(function (xhr) {
                 var err = (xhr.responseJSON && xhr.responseJSON.error)
                     ? xhr.responseJSON.error
                     : 'Verbindungsfehler \u2013 bitte erneut versuchen.';
                 appendMessage('assistant', '[Fehler: ' + err + ']');
-            }).always(function () {
                 $input.prop('disabled', false).focus();
                 $sendBtn.prop('disabled', false).text('Senden');
             });
