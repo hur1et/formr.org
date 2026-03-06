@@ -25,6 +25,32 @@ class AdminAccountController extends Controller {
         $vars = array('showform' => false);
         if ($this->request->isHTTPPostRequest()) {
             $redirect = false;
+
+            // Save AI settings (admin only)
+            if ($this->request->getParam('save_ai_settings') !== null) {
+                if (!$this->user->isAdmin()) {
+                    alert('Only administrators can change AI settings.', 'alert-danger');
+                } else {
+                    $aiConfig = array(
+                        'enabled'           => $this->request->getParam('ai_enabled') ? '1' : '0',
+                        'provider'          => $this->request->str('ai_provider', 'claude'),
+                        'claude_api_key'    => $this->request->str('ai_claude_api_key', ''),
+                        'claude_model'      => $this->request->str('ai_claude_model', 'claude-sonnet-4-6'),
+                        'openai_api_key'    => $this->request->str('ai_openai_api_key', ''),
+                        'openai_model'      => $this->request->str('ai_openai_model', 'gpt-4o'),
+                        'max_tokens'        => max(64, min(4096, (int) $this->request->getParam('ai_max_tokens', 1024))),
+                        'timeout_seconds'   => max(5,  min(300,  (int) $this->request->getParam('ai_timeout_seconds', 60))),
+                        'calls_per_hour'    => max(0,  (int) $this->request->getParam('ai_calls_per_hour', 20)),
+                        'calls_per_day'     => max(0,  (int) $this->request->getParam('ai_calls_per_day', 100)),
+                        'daily_token_limit' => max(0,  (int) $this->request->getParam('ai_daily_token_limit', 0)),
+                    );
+                    $this->fdb->insert_update('survey_settings', array(
+                        'setting' => 'ai_config',
+                        'value'   => json_encode($aiConfig),
+                    ));
+                    alert('AI settings saved successfully.', 'alert-success');
+                }
+            }
             
             // Handle account deletion
             if ($this->request->str('delete_account')) {
@@ -118,6 +144,7 @@ class AdminAccountController extends Controller {
         $vars['survey_count'] = $this->fdb->count('survey_studies', ['user_id' => $this->user->id]);
         $vars['run_count'] = $this->fdb->count('survey_runs', ['user_id' => $this->user->id]);
         $vars['mail_count'] = $this->fdb->count('survey_email_accounts', ['user_id' => $this->user->id, 'deleted' => 0]);
+        $vars['ai_config']  = $this->user->isAdmin() ? AIService::getConfig() : array();
 
         $this->setView('admin/account/index', $vars);
         return $this->sendResponse();

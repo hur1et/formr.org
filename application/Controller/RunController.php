@@ -474,7 +474,9 @@ class RunController extends Controller {
             return;
         }
 
-        if (!Config::get('ai.enabled', true)) {
+        $aiConfig  = AIService::getConfig();
+        $aiEnabled = array_val($aiConfig, 'enabled', true);
+        if ($aiEnabled !== true && $aiEnabled !== 1 && $aiEnabled !== '1') {
             $this->sendJsonResponse(array('error' => 'AI feature is currently disabled.'), 503);
             return;
         }

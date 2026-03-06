@@ -59,6 +59,9 @@
                         <li class=""><a href="#api" data-toggle="tab" aria-expanded="false">API Credentials</a></li>
                         <li class=""><a href="#data" data-toggle="tab" aria-expanded="false">Account Deletion</a></li>
                         <li class=""><a href="#2fa" data-toggle="tab" aria-expanded="false">Two Factor Authentication</a></li>
+                        <?php if ($user->isAdmin()): ?>
+                        <li class=""><a href="#ai" data-toggle="tab" aria-expanded="false"><i class="fa fa-robot"></i> AI Settings</a></li>
+                        <?php endif; ?>
                     </ul>
                     <div class="tab-content">
                         <div class="tab-pane active" id="settings">
@@ -208,6 +211,109 @@
 
                             <div class="clearfix"></div>
                         </div>
+                        <?php if ($user->isAdmin()): ?>
+                        <div class="tab-pane" id="ai">
+                            <form method="post" action="">
+                                <input type="hidden" name="save_ai_settings" value="1">
+
+                                <h4 class="lead"><i class="fa fa-cog"></i> AI Integration</h4>
+
+                                <div class="form-group">
+                                    <div class="checkbox">
+                                        <label>
+                                            <input type="checkbox" name="ai_enabled" value="1" <?= !empty($ai_config['enabled']) && $ai_config['enabled'] !== '0' ? 'checked' : '' ?>>
+                                            AI feature enabled (allows participants and researchers to call the AI API)
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="form-group col-md-4">
+                                    <label class="control-label">Provider</label>
+                                    <select class="form-control" name="ai_provider">
+                                        <option value="claude"  <?= array_val($ai_config, 'provider', 'claude') === 'claude'  ? 'selected' : '' ?>>Anthropic Claude</option>
+                                        <option value="openai"  <?= array_val($ai_config, 'provider', 'claude') === 'openai'  ? 'selected' : '' ?>>OpenAI</option>
+                                    </select>
+                                </div>
+                                <div class="clearfix"></div>
+
+                                <h4 class="lead"><i class="fa fa-key"></i> Anthropic Claude</h4>
+
+                                <div class="form-group col-md-8">
+                                    <label class="control-label">Claude API Key</label>
+                                    <input class="form-control" type="password" name="ai_claude_api_key"
+                                        value="<?= h(array_val($ai_config, 'claude_api_key', '')) ?>"
+                                        autocomplete="new-password" placeholder="sk-ant-…">
+                                </div>
+                                <div class="form-group col-md-4">
+                                    <label class="control-label">Claude Model</label>
+                                    <select class="form-control" name="ai_claude_model">
+                                        <?php foreach (array('claude-sonnet-4-6','claude-opus-4-6','claude-haiku-4-5-20251001') as $m): ?>
+                                        <option value="<?= h($m) ?>" <?= array_val($ai_config, 'claude_model', 'claude-sonnet-4-6') === $m ? 'selected' : '' ?>><?= h($m) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="clearfix"></div>
+
+                                <h4 class="lead"><i class="fa fa-key"></i> OpenAI</h4>
+
+                                <div class="form-group col-md-8">
+                                    <label class="control-label">OpenAI API Key</label>
+                                    <input class="form-control" type="password" name="ai_openai_api_key"
+                                        value="<?= h(array_val($ai_config, 'openai_api_key', '')) ?>"
+                                        autocomplete="new-password" placeholder="sk-…">
+                                </div>
+                                <div class="form-group col-md-4">
+                                    <label class="control-label">OpenAI Model</label>
+                                    <select class="form-control" name="ai_openai_model">
+                                        <?php foreach (array('gpt-4o','gpt-4o-mini','gpt-4-turbo','gpt-3.5-turbo') as $m): ?>
+                                        <option value="<?= h($m) ?>" <?= array_val($ai_config, 'openai_model', 'gpt-4o') === $m ? 'selected' : '' ?>><?= h($m) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="clearfix"></div>
+
+                                <h4 class="lead"><i class="fa fa-sliders"></i> Limits &amp; Performance</h4>
+
+                                <div class="form-group col-md-3">
+                                    <label class="control-label">Max Tokens per Response</label>
+                                    <input class="form-control" type="number" name="ai_max_tokens" min="64" max="4096"
+                                        value="<?= (int) array_val($ai_config, 'max_tokens', 1024) ?>">
+                                </div>
+                                <div class="form-group col-md-3">
+                                    <label class="control-label">Timeout (seconds)</label>
+                                    <input class="form-control" type="number" name="ai_timeout_seconds" min="5" max="300"
+                                        value="<?= (int) array_val($ai_config, 'timeout_seconds', 60) ?>">
+                                </div>
+                                <div class="clearfix"></div>
+
+                                <h4 class="lead"><i class="fa fa-tachometer"></i> Rate Limits (per researcher, 0 = unlimited)</h4>
+
+                                <div class="form-group col-md-3">
+                                    <label class="control-label">Calls per Hour</label>
+                                    <input class="form-control" type="number" name="ai_calls_per_hour" min="0"
+                                        value="<?= (int) array_val($ai_config, 'calls_per_hour', 20) ?>">
+                                </div>
+                                <div class="form-group col-md-3">
+                                    <label class="control-label">Calls per Day</label>
+                                    <input class="form-control" type="number" name="ai_calls_per_day" min="0"
+                                        value="<?= (int) array_val($ai_config, 'calls_per_day', 100) ?>">
+                                </div>
+                                <div class="form-group col-md-3">
+                                    <label class="control-label">Daily Output Token Limit</label>
+                                    <input class="form-control" type="number" name="ai_daily_token_limit" min="0"
+                                        value="<?= (int) array_val($ai_config, 'daily_token_limit', 0) ?>">
+                                </div>
+                                <div class="clearfix"></div>
+
+                                <div class="form-group col-md-12">
+                                    <button type="submit" class="btn btn-raised btn-primary btn-flat">
+                                        <i class="fa fa-save"></i> Save AI Settings
+                                    </button>
+                                </div>
+                                <div class="clearfix"></div>
+                            </form>
+                        </div>
+                        <?php endif; ?>
                     </div>
                     <!-- /.tab-content -->
                 </div>

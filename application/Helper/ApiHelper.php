@@ -234,7 +234,7 @@ class ApiHelper {
             $this->setData($error['code'], $error['text'], null, $error['desc']);
             return $this;
         }
-        $config = Config::get('ai', array());
+        $config = AIService::getConfig();
         if (!empty($provider)) $config['provider'] = $provider;
         $options = array();
         if (!empty($model))        $options['model']         = $model;
@@ -332,7 +332,9 @@ class ApiHelper {
      */
     private function checkAIAccess() {
         // 1. Global admin toggle
-        if (!Config::get('ai.enabled', true)) {
+        $aiConfig = AIService::getConfig();
+        $enabled  = array_val($aiConfig, 'enabled', true);
+        if ($enabled !== true && $enabled !== 1 && $enabled !== '1') {
             return array('code' => 503, 'text' => 'Service Unavailable',
                          'desc' => 'AI feature is currently disabled');
         }
@@ -346,7 +348,6 @@ class ApiHelper {
             return null; // unauthenticated case is handled upstream by OAuth
         }
 
-        $aiConfig = Config::get('ai', array());
         $callsPerHour    = (int) array_val($aiConfig, 'calls_per_hour', 20);
         $callsPerDay     = (int) array_val($aiConfig, 'calls_per_day', 100);
         $dailyTokenLimit = (int) array_val($aiConfig, 'daily_token_limit', 0);

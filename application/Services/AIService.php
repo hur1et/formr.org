@@ -39,9 +39,26 @@ class AIService {
      *
      * @return AIService
      */
+    /**
+     * Return the merged AI config: PHP config file as base, DB settings (ai_config) on top.
+     * Admins can override config via /admin/account#ai; the DB values take precedence.
+     *
+     * @return array
+     */
+    public static function getConfig() {
+        $config  = Config::get('ai', array());
+        $dbJson  = Site::getSettings('ai_config', null);
+        if ($dbJson) {
+            $dbConfig = json_decode($dbJson, true);
+            if (is_array($dbConfig)) {
+                $config = array_merge($config, $dbConfig);
+            }
+        }
+        return $config;
+    }
+
     public static function getInstance() {
-        $config = Config::get('ai', array());
-        return new self($config);
+        return new self(self::getConfig());
     }
 
     /**
