@@ -1,5 +1,18 @@
 import $ from 'jquery';
 
+/**
+ * Global helper for custom survey buttons: onclick="faiSend('Your prompt text')"
+ * Pre-fills the chat input (optional) and triggers the send.
+ * Returns false so onclick= does not submit the surrounding form.
+ */
+window.faiSend = function (text) {
+    if (typeof text === 'string' && text) {
+        $('.ai-chat-input').first().val(text);
+    }
+    $('.ai-chat-send').first().trigger('click');
+    return false;
+};
+
 export function initializeAiChatWidgets() {
     // Derive the AI endpoint from the survey form's action attribute.
     // The form action is already set to the run URL, e.g. /run/{run_name}/
