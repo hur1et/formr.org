@@ -37,6 +37,24 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Unsafe PHP object deserialisation (`unserialize()`) during the 2FA login flow: the
   temporary session slot now stores only the user ID as JSON; a fresh `User` object is
   constructed from the database on the 2FA verification page.
+- `ajax_ai_complete` endpoint returned an HTML 500 error page instead of JSON when any
+  exception occurred outside the AI-call try/catch (e.g. in session setup or config
+  loading). The entire action body is now wrapped in a top-level `catch (Throwable)`
+  so all errors are returned as `{"error": "..."}` JSON.
+- DB logging in `ajax_ai_completeAction` used a static `DB::getInstance()` call that
+  could fail if the connection object was not available in that context.
+- Cross-run session deletion: `deleteSessions` and `toggleTestingStatus` in
+  `AdminAjaxController` and `RunHelper` now require a `run_id` parameter to prevent
+  accidentally deleting sessions belonging to a different run.
+- Google Fonts Roboto reference inadvertently introduced by the add-to-homescreen
+  library has been removed.
+- Custom `fai-widget` HTML chat widgets embedded in survey item labels now use a
+  Schlüssel-Schloss (key-lock) protocol: the widget container carries
+  `data-fai-system-prompt` and `data-fai-min/max` attributes; `window.faiSend` is
+  exposed globally so inline `onclick="faiSend(this)"` buttons work without an
+  inline `<script>` block.
+- AI chat widget: fixed a form-submission race condition where clicking Send or
+  pressing Enter could also submit the surrounding survey form.
 
 ## [v0.25.0] - 08.12.2025
 ### Added
