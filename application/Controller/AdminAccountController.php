@@ -183,8 +183,8 @@ class AdminAccountController extends Controller {
             if ($this->user->login($info)) {
                 if($this->user->is2FAenabled()) {
                     // 2fa enabled, redirect to 2fa page
-                    // temporary store user info in session until we confirm 2FA
-                    Session::set('user_temp', serialize($this->user));
+                    // temporary store user ID in session until we confirm 2FA (JSON, not serialize)
+                    Session::set('user_temp', json_encode(array('user_id' => (int) $this->user->id)));
                     Session::set('2fa_login_started', time()); // Track when 2FA login started
                     $this->minimumWait($start, 0.3);
                     $this->request->redirect('admin/account/two-factor');
@@ -375,13 +375,13 @@ class AdminAccountController extends Controller {
 
         // Safely reconstruct the user object from session data
         try {
-            $temp_user = unserialize($temp_user_data);
-            if (!($temp_user instanceof User)) {
+            $temp_data = json_decode($temp_user_data, true);
+            $temp_user_id = isset($temp_data['user_id']) ? (int) $temp_data['user_id'] : 0;
+            if (!$temp_user_id) {
                 $this->response->setStatusCode(Response::STATUS_UNAUTHORIZED);
                 throw new Exception('Invalid user data');
             }
-            // Initialize a fresh user object with the stored credentials
-            $this->user = new User($temp_user->id, null);
+            $this->user = new User($temp_user_id, null);
             if (!$this->user->email) {
                 $this->response->setStatusCode(Response::STATUS_UNAUTHORIZED);
                 throw new Exception('Invalid user data');

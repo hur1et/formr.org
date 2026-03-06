@@ -207,7 +207,7 @@ class ApiHelper {
                 return $this;
             }
             foreach ($messages as $msg) {
-                if (empty($msg['role']) || !in_array($msg['role'], array('user', 'assistant'), true)
+                if (!is_array($msg) || empty($msg['role']) || !in_array($msg['role'], array('user', 'assistant'), true)
                     || !isset($msg['content'])) {
                     $this->setData(Response::STATUS_BAD_REQUEST, 'Bad Request', null,
                         'Each message must have "role" (user|assistant) and "content"');
@@ -528,9 +528,9 @@ class ApiHelper {
         if ($sessions && is_array($sessions)) {
             $or_like = array();
             foreach ($sessions as $session) {
-                $or_like[] = " survey_run_sessions.session LIKE '{$session}%' ";
+                $or_like[] = ' survey_run_sessions.session LIKE ' . $this->db->quote($session . '%');
             }
-            $params['WHERE_run_sessions'] = ' AND (' . implode('OR', $or_like) . ') ';
+            $params['WHERE_run_sessions'] = ' AND (' . implode(' OR ', $or_like) . ') ';
         }
         
         return Template::replace($q, $params);
