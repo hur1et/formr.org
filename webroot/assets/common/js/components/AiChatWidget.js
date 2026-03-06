@@ -4,6 +4,7 @@ export function initializeAiChatWidgets() {
     // Derive the AI endpoint from the survey form's action attribute.
     // The form action is already set to the run URL, e.g. /run/{run_name}/
     var $form = $('form.main_formr_survey');
+    console.log('[AiChat] init, form found:', $form.length, 'items:', $('.item-ai_chat').length);
     if (!$form.length) return;
 
     var formAction = ($form.attr('action') || '').replace(/\/+$/, '');
@@ -20,6 +21,12 @@ export function initializeAiChatWidgets() {
     var $nextBtn = $form.find('button[type="submit"]');
 
     var ajaxInFlight = false;
+
+    // Debug: log all form submit events with a stack trace to find the trigger
+    $form.on('submit.debug', function (e) {
+        console.log('[AiChat] form submit fired! ajaxInFlight=' + ajaxInFlight);
+        console.trace();
+    });
 
     // Block form submission entirely while an AJAX call is in flight
     $form.on('submit.aichat', function (e) {
@@ -160,6 +167,7 @@ export function initializeAiChatWidgets() {
         // Enter = send | Shift+Enter = newline
         $input.on('keydown', function (e) {
             if (e.key === 'Enter' && !e.shiftKey) {
+                console.log('[AiChat] Enter key captured in textarea, calling sendMessage');
                 e.preventDefault();
                 e.stopImmediatePropagation();
                 sendMessage();
@@ -167,6 +175,7 @@ export function initializeAiChatWidgets() {
         });
 
         $sendBtn.on('click', function (e) {
+            console.log('[AiChat] Senden button clicked, calling sendMessage');
             e.preventDefault();
             e.stopImmediatePropagation();
             sendMessage();

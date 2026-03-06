@@ -56,8 +56,10 @@ class AiChat_Item extends Item {
                 <div class="ai-chat-log"></div>
                 <div class="ai-chat-composer">
                     <textarea class="ai-chat-input form-control" rows="3"
-                        placeholder="Nachricht eingeben\xe2\x80\xa6 (Enter = Senden, Shift+Enter = neue Zeile)"></textarea>
-                    <button type="button" class="ai-chat-send btn btn-primary">Senden</button>
+                        placeholder="Nachricht eingeben\xe2\x80\xa6 (Enter = Senden, Shift+Enter = neue Zeile)"
+                        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();}"></textarea>
+                    <button type="button" class="ai-chat-send btn btn-primary"
+                        onclick="event.stopPropagation();">Senden</button>
                 </div>
                 <input %s />
             </div>',
