@@ -1,16 +1,114 @@
 import $ from 'jquery';
 
 /**
- * Global helper for custom survey buttons: onclick="faiSend('Your prompt text')"
- * Pre-fills the chat input (optional) and triggers the send.
- * Returns false so onclick= does not submit the surrounding form.
+ * Global handler for custom HTML chat widgets embedded in survey item labels.
+ *
+ * Protocol (Schlüssel-Schloss):
+ *   HTML wraps the widget in:  <div class="fai-widget" data-fai-min="3"
+ *                                   data-fai-system-prompt="...">
+ *   Senden button uses:        onclick="faiSend(this)"
+ *   Enter handling:            registered by initializeAiChatWidgets() below
+ *   Inline <script> block:     can be removed entirely
+ *
+ * Falls back to the built-in .ai-chat-send button when no .fai-widget is found.
  */
-window.faiSend = function (text) {
-    if (typeof text === 'string' && text) {
-        $('.ai-chat-input').first().val(text);
+window.faiSend = function (el) {
+    var $widget = el ? $(el).closest('.fai-widget') : $('.fai-widget').first();
+
+    if (!$widget.length) {
+        // Fallback: official ai_chat item type
+        $('.ai-chat-send').first().trigger('click');
+        return false;
     }
-    $('.ai-chat-send').first().trigger('click');
-    return false;
+
+    var inp     = $widget.find('#fai-input')[0];
+    var btn     = $widget.find('#fai-btn')[0];
+    var chat    = $widget.find('#fai-chat')[0];
+    var countEl = $widget.find('#fai-count')[0];
+
+    var t = inp ? inp.value.trim() : '';
+    if (!t || (btn && btn.disabled)) return false;
+
+    // Append user message
+    if (chat) {
+        var ud = document.createElement('div');
+        ud.className = 'fai-msg fai-user';
+        ud.textContent = t;
+        chat.appendChild(ud);
+    }
+    if (inp) inp.value = '';
+    if (btn) btn.disabled = true;
+
+    // Typing indicator (unique ID so multiple widgets don't conflict)
+    var tyId = 'fai-ty-' + Date.now();
+    if (chat) {
+        var ty = document.createElement('div');
+        ty.className = 'fai-msg fai-bot';
+        ty.id = tyId;
+        ty.innerHTML = '<em>tippt\u2026</em>';
+        chat.appendChild(ty);
+        chat.scrollTop = chat.scrollHeight;
+    }
+
+    // Derive AI endpoint from the run's data-url on <body> — works for both
+    // real runs and admin test-runs (form action is replaced but data-url is not).
+    var runUrl = (($('body').data('url')) || '').replace(/\/+$/, '');
+    var aiUrl  = runUrl ? runUrl + '/ajax_ai_complete' : '';
+    if (!aiUrl) {
+        var te = document.getElementById(tyId); if (te) te.remove();
+        if (btn) btn.disabled = false;
+        return false;
+    }
+
+    // System prompt from data attribute (replaces the hardcoded value in <script>)
+    var systemPrompt = $widget.data('fai-system-prompt') || '';
+    var payload = { prompt: t };
+    if (systemPrompt) payload.system_prompt = systemPrompt;
+
+    fetch(aiUrl, {
+        method:      'POST',
+        headers:     { 'Content-Type': 'application/json' },
+        body:        JSON.stringify(payload),
+        credentials: 'same-origin'
+    })
+    .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+    })
+    .then(function (d) {
+        var te = document.getElementById(tyId); if (te) te.remove();
+        var txt = d.text || (d.error ? 'Fehler: ' + d.error : 'Fehler');
+        if (chat) {
+            var bd = document.createElement('div');
+            bd.className = 'fai-msg fai-bot';
+            bd.textContent = txt;
+            chat.appendChild(bd);
+            chat.scrollTop = chat.scrollHeight;
+        }
+        if (countEl) {
+            var c   = parseInt(countEl.textContent || '0') + 1;
+            countEl.textContent = c;
+            var min = parseInt($widget.data('fai-min') || '0');
+            if (min > 0 && c >= min) {
+                $('form.main_formr_survey button[type="submit"]')
+                    .not('#fai-btn').prop('disabled', false);
+            }
+        }
+        if (btn) btn.disabled = false;
+        if (inp) inp.focus();
+    })
+    .catch(function () {
+        var te = document.getElementById(tyId); if (te) te.remove();
+        if (chat) {
+            var ed = document.createElement('div');
+            ed.className = 'fai-msg fai-bot';
+            ed.textContent = 'Verbindungsfehler.';
+            chat.appendChild(ed);
+        }
+        if (btn) btn.disabled = false;
+    });
+
+    return false; // prevents form submission when called from onclick=
 };
 
 export function initializeAiChatWidgets() {
@@ -28,18 +126,17 @@ export function initializeAiChatWidgets() {
         if (runIdx === -1 || !parts[runIdx + 1]) return;
         formAction = '/' + parts.slice(0, runIdx + 2).join('/');
     }
-    var aiUrl = formAction + '/ajax_ai_complete';
+    // Use the run's data-url from <body> — more reliable than form action,
+    // because the admin test-run replaces the form action with the admin URL
+    // but leaves data-url pointing to the real run endpoint.
+    var runUrl = (($('body').data('url')) || '').replace(/\/+$/, '');
+    var aiUrl  = runUrl ? runUrl + '/ajax_ai_complete'
+                        : formAction + '/ajax_ai_complete';
 
     // The submit button for the survey form
     var $nextBtn = $form.find('button[type="submit"]');
 
     var ajaxInFlight = false;
-
-    // Debug: log all form submit events with a stack trace to find the trigger
-    $form.on('submit.debug', function (e) {
-        console.log('[AiChat] form submit fired! ajaxInFlight=' + ajaxInFlight);
-        console.trace();
-    });
 
     // Block form submission entirely while an AJAX call is in flight
     $form.on('submit.aichat', function (e) {
@@ -180,7 +277,6 @@ export function initializeAiChatWidgets() {
         // Enter = send | Shift+Enter = newline
         $input.on('keydown', function (e) {
             if (e.key === 'Enter' && !e.shiftKey) {
-                console.log('[AiChat] Enter key captured in textarea, calling sendMessage');
                 e.preventDefault();
                 e.stopImmediatePropagation();
                 sendMessage();
@@ -188,10 +284,35 @@ export function initializeAiChatWidgets() {
         });
 
         $sendBtn.on('click', function (e) {
-            console.log('[AiChat] Senden button clicked, calling sendMessage');
             e.preventDefault();
             e.stopImmediatePropagation();
             sendMessage();
         });
+    });
+
+    // ── Custom .fai-widget elements (HTML widgets in Excel item labels) ─────────
+    // Initialises Enter handling and initial Weiter-button lock.
+    // The actual send logic lives in window.faiSend above.
+    $('.fai-widget').each(function () {
+        var $widget = $(this);
+        var $inp    = $widget.find('#fai-input');
+        var min     = parseInt($widget.data('fai-min') || '0');
+
+        // Enter in the text input → faiSend, not form submit
+        if ($inp.length) {
+            $inp.on('keydown.faiwidget', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.faiSend($widget.find('#fai-btn')[0]);
+                }
+            });
+        }
+
+        // Lock the Weiter button until the minimum number of messages is reached
+        if (min > 0) {
+            $('form.main_formr_survey button[type="submit"]')
+                .not('#fai-btn').prop('disabled', true);
+        }
     });
 }
