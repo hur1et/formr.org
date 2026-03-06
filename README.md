@@ -19,6 +19,8 @@ Surveys are simple or complicated forms and surveys used to gather information i
 
 There is a wide variety of items to choose from: text and number inputs, Likert scales, sliders, geolocation, date pickers, dropdowns and many more. They are geared towards power users, so instead of dragging and dropping elements till your fingers bleed, you upload item spreadsheets that can easily be re-used, combined and shared. The format is loosely based on the [XLSform standard](https://xlsform.org/).
 
+A special `ai_chat` item type enables interactive AI conversations inside surveys. Participants chat with a language model (Anthropic Claude or OpenAI) directly on the survey page; the full conversation is saved with the response. Researchers can configure minimum and maximum turn counts and word-count limits per message. The AI provider, API keys, rate limits, and default chat constraints are managed in the admin panel under *Account → AI Settings*.
+
 ## Runs
 #### control your study like a boombox
 Runs enable you to link surveys and chain them together. Using a number of boombox-themed control elements to control the participant's way through your study, you can design studies of limitless complexity. You can
