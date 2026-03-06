@@ -8,6 +8,7 @@ import { initializePWAInstaller, initializePushNotifications, initializeRequestP
 import { initializeExpiryNotifier } from './components/ExpiryNotifier';
 import { initializeSelect2Components } from './components/Select2Initializer';
 import { FormMonkey } from './components/FormMonkey';
+import { initializeAiChatWidgets } from './components/AiChatWidget';
 
 var is = {
     na: function(x) {
@@ -128,6 +129,7 @@ function ajaxifyForm(i, elm) {
         initializePushNotifications();
         initializeExpiryNotifier();
         initializeSelect2Components();
+        initializeAiChatWidgets();
         this.initializeCounters();
         this.initializeFormValidation();
         this.initializeFormSubmission();
