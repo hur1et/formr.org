@@ -55,6 +55,11 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
   inline `<script>` block.
 - AI chat widget: fixed a form-submission race condition where clicking Send or
   pressing Enter could also submit the surrounding survey form.
+- Mixed-content breakage after switching to HTTPS behind a reverse proxy: `setup.php`
+  now checks the `X-Forwarded-Proto: https` header in addition to `$_SERVER['HTTPS']`.
+  Server/proxy signals take precedence over any `$settings['protocol']` value in
+  `config/settings.php`, so a stale `http://` config entry can no longer produce
+  HTTP asset URLs on an HTTPS page.
 
 ## [v0.25.0] - 08.12.2025
 ### Added

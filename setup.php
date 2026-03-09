@@ -56,13 +56,23 @@ function __formr_setup($settings = array()) {
 		return;
 	}
 
-	$protocol = (!isset($_SERVER['HTTPS']) || $_SERVER['HTTPS'] == '') ? 'http://' : 'https://';
+	// Detect HTTPS: direct server flag OR reverse-proxy X-Forwarded-Proto header.
+	// Server/proxy signals take highest priority so that a stale 'http://' in
+	// config/settings.php cannot cause mixed-content breakage after switching to HTTPS.
+	$httpsViaServer = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+	$httpsViaProxy  = (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) &&
+	                   strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https');
+
+	if ($httpsViaServer || $httpsViaProxy) {
+		$protocol = 'https://';
+	} elseif (!empty($settings['protocol'])) {
+		$protocol = $settings['protocol'];
+	} else {
+		$protocol = 'http://';
+	}
+
 	$doc_root = isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] . '/' : '/';
 	$online = true;
-
-	if (!empty($settings['protocol'])) {
-		$protocol = $settings['protocol'];
-	}
 
 	define('WEBROOT', $protocol . $doc_root);
 	define('SERVER_NAME', isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : '');
