@@ -514,7 +514,7 @@ class RunController extends Controller {
                 if (!empty($prompt))    $conversationForLog[] = array('role' => 'user',      'content' => $prompt);
                 $conversationForLog[]   = array('role' => 'assistant', 'content' => $result['text']);
                 $convJson = json_encode($conversationForLog, JSON_UNESCAPED_UNICODE);
-                DB::getInstance()->insert('survey_ai_log', array(
+                $this->fdb->insert('survey_ai_log', array(
                     'user_id'           => 0,
                     'session_token'     => $session->session,
                     'provider'          => array_val($result, 'provider', ''),
