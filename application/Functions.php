@@ -781,6 +781,7 @@ function run_url($name = '', $action = '', $params = array()) {
     if (Config::get('use_study_subdomains')) {
         $subdomain = strtolower($name);
     } else {
+        $domain = ltrim($domain, '.'); // strip leading dot from wildcard pattern (e.g. "*.host.de" → "host.de")
         $domain .= '/' . $name;
     }
 

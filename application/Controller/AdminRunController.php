@@ -373,6 +373,53 @@ class AdminRunController extends AdminController {
         }
     }
 
+    private function exportAiChatAction() {
+        $run = $this->run;
+
+        $stmt = $this->fdb->prepare(
+            'SELECT srs.session   AS session,
+                    si.name       AS item_name,
+                    sid.answered  AS answered_at,
+                    sid.answer    AS conversation_json
+             FROM survey_items_display sid
+             JOIN survey_items         si  ON si.id  = sid.item_id
+             JOIN survey_unit_sessions sus ON sus.id = sid.session_id
+             JOIN survey_run_sessions  srs ON srs.id = sus.run_session_id
+             WHERE srs.run_id = :run_id
+               AND si.type    = \'ai_chat\'
+               AND sid.answer IS NOT NULL
+             ORDER BY srs.session, sid.answered'
+        );
+        $stmt->execute(array(':run_id' => $run->id));
+
+        $records = array();
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $conversation = json_decode($row['conversation_json'], true);
+            $records[] = array(
+                'session'      => $row['session'],  // same identifier as in CSV/XLSX export
+                'item'         => $row['item_name'],
+                'answered'     => $row['answered_at'],
+                'conversation' => is_array($conversation) ? $conversation : array(),
+            );
+        }
+
+        if (empty($records)) {
+            alert('No AI chat records found for this run.', 'alert-info');
+            $this->request->redirect(admin_run_url($run->name));
+            return;
+        }
+
+        $filename = $run->name . '_ai_chat_' . date('Y-m-d') . '.json';
+        $json = json_encode($records, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+
+        header('Content-Type: application/json; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Cache-Control: max-age=0');
+        header('Content-Length: ' . strlen($json));
+        echo $json;
+        exit;
+    }
+
     private function exportSurveyResultsAction() {
         $studies = $this->run->getAllSurveys();
         $dir = APPLICATION_ROOT . 'tmp/backups/results';

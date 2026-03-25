@@ -215,6 +215,7 @@
                         <div class="tab-pane" id="ai">
                             <form method="post" action="">
                                 <input type="hidden" name="save_ai_settings" value="1">
+                                <input type="hidden" name="<?= Session::REQUEST_TOKENS ?>" value="<?= Session::getRequestToken() ?>">
 
                                 <h4 class="lead"><i class="fa fa-cog"></i> AI Integration</h4>
 

@@ -28,7 +28,9 @@ class AdminAccountController extends Controller {
 
             // Save AI settings (admin only)
             if ($this->request->getParam('save_ai_settings') !== null) {
-                if (!$this->user->isAdmin()) {
+                if (!Session::canValidateRequestToken($this->request)) {
+                    alert('Could not validate request token — please try again.', 'alert-danger');
+                } elseif (!$this->user->isAdmin()) {
                     alert('Only administrators can change AI settings.', 'alert-danger');
                 } else {
                     $aiConfig = array(

@@ -332,12 +332,11 @@ class ApiHelper {
      */
     private function checkAIAccess() {
         // 1. Global admin toggle
-        $aiConfig = AIService::getConfig();
-        $enabled  = array_val($aiConfig, 'enabled', true);
-        if ($enabled !== true && $enabled !== 1 && $enabled !== '1') {
+        if (!AIService::isEnabled()) {
             return array('code' => 503, 'text' => 'Service Unavailable',
                          'desc' => 'AI feature is currently disabled');
         }
+        $aiConfig = AIService::getConfig();
 
         // 2. Admin users are exempt from rate limits and token caps
         if ($this->user && $this->user->isAdmin()) {
@@ -398,33 +397,7 @@ class ApiHelper {
         if (!$this->user || !$this->user->id) {
             return;
         }
-        $conversationJson = null;
-        if (!empty($conversation)) {
-            $encoded = json_encode($conversation, JSON_UNESCAPED_UNICODE);
-            if ($encoded !== false && strlen($encoded) <= 1048576) {
-                $conversationJson = $encoded;
-            } elseif ($encoded !== false) {
-                $conversationJson = json_encode(array_slice($conversation, -20), JSON_UNESCAPED_UNICODE);
-            }
-        }
-        $promptText   = mb_substr((string) $prompt,         0, 60000, 'UTF-8');
-        $responseText = mb_substr((string) $result['text'], 0, 60000, 'UTF-8');
-        try {
-            $this->db->insert('survey_ai_log', array(
-                'user_id'           => $this->user->id,
-                'session_token'     => '',
-                'provider'          => array_val($result, 'provider', ''),
-                'model'             => array_val($result, 'model',    ''),
-                'input_tokens'      => (int) array_val($result, 'input_tokens',  0),
-                'output_tokens'     => (int) array_val($result, 'output_tokens', 0),
-                'prompt_text'       => $promptText,
-                'response_text'     => $responseText,
-                'conversation_json' => $conversationJson,
-                'created'           => date('Y-m-d H:i:s'),
-            ));
-        } catch (Exception $e) {
-            formr_log_exception($e, 'AI_LOG');
-        }
+        AILogger::log($this->db, $result, $prompt, $conversation, $this->user->id, '');
     }
 
     private function setData($statusCode = null, $statusText = null, $response = null, $error = null) {

@@ -62,6 +62,7 @@
                     <li><a href="<?php echo admin_run_url($run->name, 'export_data?format=xls'); ?>"><i class="fa fa-floppy-o"></i> Download XLS</a></li>
                     <li><a href="<?php echo admin_run_url($run->name, 'export_data?format=xlsx'); ?>"><i class="fa fa-floppy-o"></i> Download XLSX</a></li>
                     <li><a href="<?php echo admin_run_url($run->name, 'export_data?format=json'); ?>"><i class="fa fa-floppy-o"></i> Download JSON</a></li>
+                    <li><a href="<?php echo admin_run_url($run->name, 'export_ai_chat'); ?>"><i class="fa fa-comments-o"></i> Download AI Chats (JSON)</a></li>
                 </ul>
             </li>
         </ul>

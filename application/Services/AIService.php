@@ -28,17 +28,12 @@ class AIService {
     /** Absolute upper bound for prompt length (~8k tokens safety cap). */
     const MAX_PROMPT_LENGTH = 32000;
 
-    /** @var AIClaudeProvider|AIOpenAIProvider */
+    /** @var AbstractAIProvider */
     private $provider;
 
     /** @var array */
     private $config;
 
-    /**
-     * Create an AIService instance from application config.
-     *
-     * @return AIService
-     */
     /**
      * Return the merged AI config: PHP config file as base, DB settings (ai_config) on top.
      * Admins can override config via /admin/account#ai; the DB values take precedence.
@@ -55,6 +50,17 @@ class AIService {
             }
         }
         return $config;
+    }
+
+    /**
+     * Returns true if the AI feature is enabled in config/DB settings.
+     *
+     * @return bool
+     */
+    public static function isEnabled() {
+        $config  = self::getConfig();
+        $enabled = array_val($config, 'enabled', true);
+        return ($enabled === true || $enabled === 1 || $enabled === '1');
     }
 
     public static function getInstance() {
@@ -79,7 +85,7 @@ class AIService {
      * Send a prompt to the configured AI provider and return the completion.
      *
      * @param string $prompt     The user message / prompt text
-     * @param array  $options    Optional overrides: 'model', 'max_tokens'
+     * @param array  $options    Optional overrides: 'model', 'max_tokens', 'system_prompt', 'messages'
      * @return array {
      *   string  text          The generated text
      *   string  model         Model identifier used
@@ -114,34 +120,135 @@ class AIService {
 
 
 /**
- * Anthropic Claude provider for AIService.
+ * Abstract base class for AI provider implementations.
+ * Handles shared CURL execution, response validation, and the complete() flow.
+ * Subclasses implement provider-specific message building, headers, and text extraction.
  */
-class AIClaudeProvider {
+abstract class AbstractAIProvider {
 
-    const API_URL       = 'https://api.anthropic.com/v1/messages';
-    const API_VERSION   = '2023-06-01';
-    const DEFAULT_MODEL = 'claude-sonnet-4-6';
+    protected $apiKey;
+    protected $model;
+    protected $maxTokens;
+    protected $timeout;
 
-    private $apiKey;
-    private $model;
-    private $maxTokens;
-    private $timeout;
+    protected function initCommonConfig(array $config, $apiKeyField, $modelField, $defaultModel) {
+        $this->apiKey    = array_val($config, $apiKeyField,        '');
+        $this->model     = array_val($config, $modelField,         $defaultModel);
+        $this->maxTokens = (int) array_val($config, 'max_tokens',      1024);
+        $this->timeout   = (int) array_val($config, 'timeout_seconds',   60);
+    }
 
-    public function __construct(array $config) {
-        $this->apiKey    = array_val($config, 'claude_api_key', '');
-        $this->model     = array_val($config, 'claude_model', self::DEFAULT_MODEL);
-        $this->maxTokens = (int) array_val($config, 'max_tokens', 1024);
-        $this->timeout   = (int) array_val($config, 'timeout_seconds', 60);
+    /**
+     * Execute a POST request to the provider API and return the decoded JSON response.
+     *
+     * @throws Exception on network error, invalid JSON, or non-200 HTTP status
+     */
+    protected function executeRequest($url, array $headers, $body) {
+        $curlOptions = array(
+            CURLOPT_TIMEOUT    => $this->timeout,
+            CURLOPT_HTTPHEADER => $headers,
+        );
+        $info = null;
+        $raw  = CURL::HttpRequest($url, $body, CURL::HTTP_METHOD_POST, $curlOptions, $info);
+        $data = json_decode($raw, true);
+        if ($data === null) {
+            throw new Exception($this->providerName() . ' API returned invalid JSON (HTTP ' . $info['http_code'] . ')');
+        }
+        if ($info['http_code'] !== 200) {
+            $errorMsg = !empty($data['error']['message']) ? $data['error']['message'] : 'Unknown ' . $this->providerName() . ' API error';
+            throw new Exception($this->providerName() . ' API error (HTTP ' . $info['http_code'] . '): ' . $errorMsg);
+        }
+        return $data;
     }
 
     public function complete($prompt, array $options = array()) {
         if (empty($this->apiKey)) {
-            throw new Exception('Claude API key is not configured');
+            throw new Exception($this->providerName() . ' API key is not configured');
         }
         $model        = array_val($options, 'model',         $this->model);
         $maxTokens    = (int) array_val($options, 'max_tokens',    $this->maxTokens);
         $systemPrompt = array_val($options, 'system_prompt', '');
         $history      = array_val($options, 'messages',      null);
+
+        $messages = $this->buildMessages($prompt, $systemPrompt, $history);
+        if (empty($messages)) {
+            throw new Exception('No prompt or messages provided');
+        }
+        $body = json_encode($this->buildRequestBody($model, $maxTokens, $messages, $systemPrompt));
+        $data = $this->executeRequest($this->getApiUrl(), $this->buildHeaders(), $body);
+        $text = $this->extractText($data);
+        if (empty($text)) {
+            throw new Exception($this->providerName() . ' API returned an empty response text');
+        }
+        $tokens = $this->extractTokens($data);
+        return array(
+            'text'          => $text,
+            'model'         => isset($data['model']) ? $data['model'] : $model,
+            'provider'      => $this->providerConstant(),
+            'input_tokens'  => $tokens['input'],
+            'output_tokens' => $tokens['output'],
+        );
+    }
+
+    /** Human-readable provider name for error messages (e.g. 'Claude', 'OpenAI'). */
+    abstract protected function providerName();
+
+    /** Provider constant for the 'provider' field in results (e.g. AIService::PROVIDER_CLAUDE). */
+    abstract protected function providerConstant();
+
+    abstract protected function getApiUrl();
+    abstract protected function buildHeaders();
+
+    /**
+     * Build the messages array from prompt, system prompt, and history.
+     * Note: Claude handles system prompts separately (in buildRequestBody),
+     * while OpenAI embeds them as the first message here.
+     */
+    abstract protected function buildMessages($prompt, $systemPrompt, $history);
+
+    /**
+     * Build the full request body array from model, tokens, messages, and system prompt.
+     * $systemPrompt is passed again so Claude can add it as a top-level 'system' key.
+     */
+    abstract protected function buildRequestBody($model, $maxTokens, array $messages, $systemPrompt);
+
+    /** Extract the response text from the decoded API response. */
+    abstract protected function extractText(array $data);
+
+    /** Return array('input' => int|null, 'output' => int|null) from decoded API response. */
+    abstract protected function extractTokens(array $data);
+
+    abstract public function getModels();
+}
+
+
+/**
+ * Anthropic Claude provider for AIService.
+ */
+class AIClaudeProvider extends AbstractAIProvider {
+
+    const API_URL       = 'https://api.anthropic.com/v1/messages';
+    const API_VERSION   = '2023-06-01';
+    const DEFAULT_MODEL = 'claude-sonnet-4-6';
+
+    public function __construct(array $config) {
+        $this->initCommonConfig($config, 'claude_api_key', 'claude_model', self::DEFAULT_MODEL);
+    }
+
+    protected function providerName()     { return 'Claude'; }
+    protected function providerConstant() { return AIService::PROVIDER_CLAUDE; }
+    protected function getApiUrl()        { return self::API_URL; }
+
+    protected function buildHeaders() {
+        return array(
+            'Content-Type: application/json',
+            'x-api-key: ' . $this->apiKey,
+            'anthropic-version: ' . self::API_VERSION,
+        );
+    }
+
+    protected function buildMessages($prompt, $systemPrompt, $history) {
+        // Claude: system prompt is a top-level field, not a message
         $messages = array();
         if (!empty($history) && is_array($history)) {
             $messages = $history;
@@ -149,46 +256,29 @@ class AIClaudeProvider {
         if (!empty($prompt)) {
             $messages[] = array('role' => 'user', 'content' => $prompt);
         }
-        if (empty($messages)) {
-            throw new Exception('No prompt or messages provided');
-        }
-        $requestBody = array(
+        return $messages;
+    }
+
+    protected function buildRequestBody($model, $maxTokens, array $messages, $systemPrompt) {
+        $body = array(
             'model'      => $model,
             'max_tokens' => $maxTokens,
             'messages'   => $messages,
         );
         if (!empty($systemPrompt)) {
-            $requestBody['system'] = $systemPrompt;
+            $body['system'] = $systemPrompt;
         }
-        $body = json_encode($requestBody);
-        $curlOptions = array(
-            CURLOPT_TIMEOUT    => $this->timeout,
-            CURLOPT_HTTPHEADER => array(
-                'Content-Type: application/json',
-                'x-api-key: ' . $this->apiKey,
-                'anthropic-version: ' . self::API_VERSION,
-            ),
-        );
-        $info = null;
-        $raw  = CURL::HttpRequest(self::API_URL, $body, CURL::HTTP_METHOD_POST, $curlOptions, $info);
-        $data = json_decode($raw, true);
-        if ($data === null) {
-            throw new Exception('Claude API returned invalid JSON (HTTP ' . $info['http_code'] . ')');
-        }
-        if ($info['http_code'] !== 200) {
-            $errorMsg = !empty($data['error']['message']) ? $data['error']['message'] : 'Unknown Claude API error';
-            throw new Exception('Claude API error (HTTP ' . $info['http_code'] . '): ' . $errorMsg);
-        }
-        $text = isset($data['content'][0]['text']) ? $data['content'][0]['text'] : '';
-        if (empty($text)) {
-            throw new Exception('Claude API returned an empty response text');
-        }
+        return $body;
+    }
+
+    protected function extractText(array $data) {
+        return isset($data['content'][0]['text']) ? $data['content'][0]['text'] : '';
+    }
+
+    protected function extractTokens(array $data) {
         return array(
-            'text'          => $text,
-            'model'         => isset($data['model']) ? $data['model'] : $model,
-            'provider'      => AIService::PROVIDER_CLAUDE,
-            'input_tokens'  => isset($data['usage']['input_tokens'])  ? $data['usage']['input_tokens']  : null,
-            'output_tokens' => isset($data['usage']['output_tokens']) ? $data['usage']['output_tokens'] : null,
+            'input'  => isset($data['usage']['input_tokens'])  ? $data['usage']['input_tokens']  : null,
+            'output' => isset($data['usage']['output_tokens']) ? $data['usage']['output_tokens'] : null,
         );
     }
 
@@ -205,31 +295,28 @@ class AIClaudeProvider {
 /**
  * OpenAI provider for AIService.
  */
-class AIOpenAIProvider {
+class AIOpenAIProvider extends AbstractAIProvider {
 
     const API_URL       = 'https://api.openai.com/v1/chat/completions';
     const DEFAULT_MODEL = 'gpt-4o';
 
-    private $apiKey;
-    private $model;
-    private $maxTokens;
-    private $timeout;
-
     public function __construct(array $config) {
-        $this->apiKey    = array_val($config, 'openai_api_key', '');
-        $this->model     = array_val($config, 'openai_model', self::DEFAULT_MODEL);
-        $this->maxTokens = (int) array_val($config, 'max_tokens', 1024);
-        $this->timeout   = (int) array_val($config, 'timeout_seconds', 60);
+        $this->initCommonConfig($config, 'openai_api_key', 'openai_model', self::DEFAULT_MODEL);
     }
 
-    public function complete($prompt, array $options = array()) {
-        if (empty($this->apiKey)) {
-            throw new Exception('OpenAI API key is not configured');
-        }
-        $model        = array_val($options, 'model',         $this->model);
-        $maxTokens    = (int) array_val($options, 'max_tokens',    $this->maxTokens);
-        $systemPrompt = array_val($options, 'system_prompt', '');
-        $history      = array_val($options, 'messages',      null);
+    protected function providerName()     { return 'OpenAI'; }
+    protected function providerConstant() { return AIService::PROVIDER_OPENAI; }
+    protected function getApiUrl()        { return self::API_URL; }
+
+    protected function buildHeaders() {
+        return array(
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $this->apiKey,
+        );
+    }
+
+    protected function buildMessages($prompt, $systemPrompt, $history) {
+        // OpenAI: system prompt is embedded as the first message with role 'system'
         $messages = array();
         if (!empty($systemPrompt)) {
             $messages[] = array('role' => 'system', 'content' => $systemPrompt);
@@ -240,41 +327,26 @@ class AIOpenAIProvider {
         if (!empty($prompt)) {
             $messages[] = array('role' => 'user', 'content' => $prompt);
         }
-        if (empty($messages)) {
-            throw new Exception('No prompt or messages provided');
-        }
-        $body = json_encode(array(
+        return $messages;
+    }
+
+    protected function buildRequestBody($model, $maxTokens, array $messages, $systemPrompt) {
+        // $systemPrompt already embedded in $messages by buildMessages()
+        return array(
             'model'      => $model,
             'max_tokens' => $maxTokens,
             'messages'   => $messages,
-        ));
-        $curlOptions = array(
-            CURLOPT_TIMEOUT    => $this->timeout,
-            CURLOPT_HTTPHEADER => array(
-                'Content-Type: application/json',
-                'Authorization: Bearer ' . $this->apiKey,
-            ),
         );
-        $info = null;
-        $raw  = CURL::HttpRequest(self::API_URL, $body, CURL::HTTP_METHOD_POST, $curlOptions, $info);
-        $data = json_decode($raw, true);
-        if ($data === null) {
-            throw new Exception('OpenAI API returned invalid JSON (HTTP ' . $info['http_code'] . ')');
-        }
-        if ($info['http_code'] !== 200) {
-            $errorMsg = !empty($data['error']['message']) ? $data['error']['message'] : 'Unknown OpenAI API error';
-            throw new Exception('OpenAI API error (HTTP ' . $info['http_code'] . '): ' . $errorMsg);
-        }
-        $text = isset($data['choices'][0]['message']['content']) ? $data['choices'][0]['message']['content'] : '';
-        if (empty($text)) {
-            throw new Exception('OpenAI API returned an empty response text');
-        }
+    }
+
+    protected function extractText(array $data) {
+        return isset($data['choices'][0]['message']['content']) ? $data['choices'][0]['message']['content'] : '';
+    }
+
+    protected function extractTokens(array $data) {
         return array(
-            'text'          => $text,
-            'model'         => isset($data['model']) ? $data['model'] : $model,
-            'provider'      => AIService::PROVIDER_OPENAI,
-            'input_tokens'  => isset($data['usage']['prompt_tokens'])     ? $data['usage']['prompt_tokens']     : null,
-            'output_tokens' => isset($data['usage']['completion_tokens']) ? $data['usage']['completion_tokens'] : null,
+            'input'  => isset($data['usage']['prompt_tokens'])     ? $data['usage']['prompt_tokens']     : null,
+            'output' => isset($data['usage']['completion_tokens']) ? $data['usage']['completion_tokens'] : null,
         );
     }
 
@@ -285,5 +357,57 @@ class AIOpenAIProvider {
             'gpt-4-turbo',
             'gpt-3.5-turbo',
         );
+    }
+}
+
+
+/**
+ * Utility class for writing AI call records to survey_ai_log.
+ * Used by both RunController (participant calls, user_id=0) and ApiHelper (researcher API calls).
+ */
+class AILogger {
+
+    /**
+     * Write an AI call entry to survey_ai_log. Non-fatal: DB errors are logged but don't block.
+     *
+     * @param object $db           DB instance (must have insert())
+     * @param array  $result       Return value from AIService->complete()
+     * @param string $prompt       The original prompt text
+     * @param array  $messages     Conversation history before the current prompt
+     * @param int    $userId       0 for run participants, >0 for authenticated researchers
+     * @param string $sessionToken Run session token (empty string for API calls)
+     */
+    public static function log($db, array $result, $prompt, array $messages, $userId, $sessionToken = '') {
+        $conversation = array();
+        if (!empty($messages)) $conversation = $messages;
+        if (!empty($prompt))   $conversation[] = array('role' => 'user',      'content' => $prompt);
+        $conversation[]         = array('role' => 'assistant', 'content' => $result['text']);
+
+        $convJson = null;
+        if (!empty($conversation)) {
+            $encoded = json_encode($conversation, JSON_UNESCAPED_UNICODE);
+            if ($encoded !== false) {
+                $convJson = strlen($encoded) <= 1048576
+                    ? $encoded
+                    : json_encode(array_slice($conversation, -20), JSON_UNESCAPED_UNICODE);
+            }
+        }
+
+        try {
+            $db->insert('survey_ai_log', array(
+                'user_id'           => (int) $userId,
+                'session_token'     => (string) $sessionToken,
+                'provider'          => array_val($result, 'provider', ''),
+                'model'             => array_val($result, 'model',    ''),
+                'input_tokens'      => (int) array_val($result, 'input_tokens',  0),
+                'output_tokens'     => (int) array_val($result, 'output_tokens', 0),
+                'prompt_text'       => mb_substr((string) $prompt,         0, 60000, 'UTF-8'),
+                'response_text'     => mb_substr((string) $result['text'], 0, 60000, 'UTF-8'),
+                'conversation_json' => $convJson,
+                'created'           => date('Y-m-d H:i:s'),
+            ));
+        } catch (Throwable $e) {
+            formr_log_exception($e, 'AI_LOG');
+        }
     }
 }

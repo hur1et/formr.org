@@ -72,37 +72,58 @@ window.faiSend = function (el) {
         credentials: 'same-origin'
     })
     .then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
+        return r.json().then(function (d) { return { status: r.status, ok: r.ok, data: d }; });
     })
-    .then(function (d) {
+    .then(function (res) {
         var te = document.getElementById(tyId); if (te) te.remove();
-        var txt = d.text || (d.error ? 'Fehler: ' + d.error : 'Fehler');
-        if (chat) {
-            var bd = document.createElement('div');
-            bd.className = 'fai-msg fai-bot';
-            bd.textContent = txt;
-            chat.appendChild(bd);
-            chat.scrollTop = chat.scrollHeight;
-        }
-        if (countEl) {
-            var c   = parseInt(countEl.textContent || '0') + 1;
-            countEl.textContent = c;
-            var min = parseInt($widget.data('fai-min') || '0');
-            if (min > 0 && c >= min) {
-                $('form.main_formr_survey button[type="submit"]')
-                    .not('#fai-btn').prop('disabled', false);
+        if (res.ok) {
+            var txt = res.data.text || (res.data.error ? 'Fehler: ' + res.data.error : 'Fehler');
+            if (chat) {
+                var bd = document.createElement('div');
+                bd.className = 'fai-msg fai-bot';
+                bd.textContent = txt;
+                chat.appendChild(bd);
+                chat.scrollTop = chat.scrollHeight;
             }
+            if (countEl) {
+                var c   = parseInt(countEl.textContent || '0') + 1;
+                countEl.textContent = c;
+                var min = parseInt($widget.data('fai-min') || '0');
+                if (min > 0 && c >= min) {
+                    $('form.main_formr_survey button[type="submit"]')
+                        .not('#fai-btn').prop('disabled', false);
+                }
+            }
+            if (btn) btn.disabled = false;
+            if (inp) inp.focus();
+        } else {
+            var errTxt;
+            if (res.status === 429) {
+                errTxt = 'Zu viele Anfragen. Bitte warte kurz und versuche es erneut.';
+            } else if (res.status === 503) {
+                errTxt = 'Die KI ist momentan nicht verf\u00fcgbar.';
+            } else {
+                errTxt = (res.data && res.data.error)
+                    ? res.data.error
+                    : 'Verbindungsfehler \u2013 bitte erneut versuchen.';
+            }
+            if (chat) {
+                var ed = document.createElement('div');
+                ed.className = 'fai-msg fai-bot';
+                ed.textContent = errTxt;
+                chat.appendChild(ed);
+                chat.scrollTop = chat.scrollHeight;
+            }
+            if (btn) btn.disabled = false;
         }
-        if (btn) btn.disabled = false;
-        if (inp) inp.focus();
     })
     .catch(function () {
+        // Only true network failures (DNS, offline, CORS) reach here
         var te = document.getElementById(tyId); if (te) te.remove();
         if (chat) {
             var ed = document.createElement('div');
             ed.className = 'fai-msg fai-bot';
-            ed.textContent = 'Verbindungsfehler.';
+            ed.textContent = 'Verbindungsfehler \u2013 bitte pr\u00fcfe deine Internetverbindung.';
             chat.appendChild(ed);
         }
         if (btn) btn.disabled = false;
@@ -259,9 +280,18 @@ export function initializeAiChatWidgets() {
                 $input.prop('disabled', false).focus();
                 $sendBtn.prop('disabled', false).text('Senden');
             }).fail(function (xhr) {
-                var err = (xhr.responseJSON && xhr.responseJSON.error)
-                    ? xhr.responseJSON.error
-                    : 'Verbindungsfehler \u2013 bitte erneut versuchen.';
+                var err;
+                if (xhr.status === 429) {
+                    err = 'Zu viele Anfragen. Bitte warte kurz und versuche es erneut.';
+                } else if (xhr.status === 503) {
+                    err = 'Die KI ist momentan nicht verf\u00fcgbar.';
+                } else if (xhr.status === 0) {
+                    err = 'Verbindungsfehler \u2013 bitte pr\u00fcfe deine Internetverbindung.';
+                } else {
+                    err = (xhr.responseJSON && xhr.responseJSON.error)
+                        ? xhr.responseJSON.error
+                        : 'Verbindungsfehler \u2013 bitte erneut versuchen.';
+                }
                 appendMessage('assistant', '[Fehler: ' + err + ']');
                 $input.prop('disabled', false).focus();
                 $sendBtn.prop('disabled', false).text('Senden');

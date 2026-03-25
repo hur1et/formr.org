@@ -390,14 +390,26 @@ class RunController extends Controller {
         exit; // Stop further script execution
     }
 
-    public function ajax_get_push_subscription_statusAction() {
-        $this->run = $this->getRun();
-        $this->user = $this->loginUser(); // Ensure user and session are loaded
-        $session = new RunSession($this->user->user_code, $this->run);
+    /**
+     * Load the run, authenticate the user, and return a valid RunSession.
+     * Sends a 401 JSON response and returns null if the session is not found.
+     *
+     * @return RunSession|null
+     */
+    protected function requireValidSession() {
+        $this->run  = $this->getRun();
+        $this->user = $this->loginUser();
+        $session    = new RunSession($this->user->user_code, $this->run);
         if (!$session->id) {
             $this->sendJsonResponse(array('error' => 'User session not found.'), 401);
-            return;
+            return null;
         }
+        return $session;
+    }
+
+    public function ajax_get_push_subscription_statusAction() {
+        $session = $this->requireValidSession();
+        if ($session === null) return;
 
         $subscription = array_val($session->getSettings(), 'push_subscription');
         $this->sendJsonResponse(array('subscription' => $subscription));
@@ -409,14 +421,8 @@ class RunController extends Controller {
             return;
         }
 
-        $this->run = $this->getRun();
-        $this->user = $this->loginUser();
-        $session = new RunSession($this->user->user_code, $this->run);
-
-        if (!$session->id) {
-            $this->sendJsonResponse(array('error' => 'User session not found.'), 401);
-            return;
-        }
+        $session = $this->requireValidSession();
+        if ($session === null) return;
 
         $subscriptionJson = $this->request->getParam('subscription');
         if (empty($subscriptionJson)) {
@@ -443,14 +449,8 @@ class RunController extends Controller {
             return;
         }
 
-        $this->run = $this->getRun();
-        $this->user = $this->loginUser();
-        $session = new RunSession($this->user->user_code, $this->run);
-
-        if (!$session->id) {
-            $this->sendJsonResponse(array('error' => 'User session not found.'), 401);
-            return;
-        }
+        $session = $this->requireValidSession();
+        if ($session === null) return;
 
         if ($session->updateSubscription(null)) {
             $this->sendJsonResponse(array('success' => true, 'message' => 'Subscription deleted.'));
@@ -466,18 +466,10 @@ class RunController extends Controller {
                 return;
             }
 
-            $this->run  = $this->getRun();
-            $this->user = $this->loginUser();
-            $session    = new RunSession($this->user->user_code, $this->run);
+            $session = $this->requireValidSession();
+            if ($session === null) return;
 
-            if (!$session->id) {
-                $this->sendJsonResponse(array('error' => 'User session not found.'), 401);
-                return;
-            }
-
-            $aiConfig  = AIService::getConfig();
-            $aiEnabled = array_val($aiConfig, 'enabled', true);
-            if ($aiEnabled !== true && $aiEnabled !== 1 && $aiEnabled !== '1') {
+            if (!AIService::isEnabled()) {
                 $this->sendJsonResponse(array('error' => 'AI feature is currently disabled.'), 503);
                 return;
             }
@@ -493,11 +485,29 @@ class RunController extends Controller {
                 return;
             }
 
+            if (!empty($messages)) {
+                if (!is_array($messages)) {
+                    $this->sendJsonResponse(array('error' => '"messages" must be an array of {role, content} objects'), 400);
+                    return;
+                }
+                foreach ($messages as $msg) {
+                    if (!is_array($msg) || empty($msg['role']) || !in_array($msg['role'], array('user', 'assistant'), true)
+                        || !isset($msg['content'])) {
+                        $this->sendJsonResponse(array('error' => 'Each message must have "role" (user|assistant) and "content"'), 400);
+                        return;
+                    }
+                }
+            }
+
+            if (!empty($prompt) && mb_strlen($prompt) > AIService::MAX_PROMPT_LENGTH) {
+                $this->sendJsonResponse(array('error' => 'Prompt exceeds the maximum length of ' . AIService::MAX_PROMPT_LENGTH . ' characters'), 400);
+                return;
+            }
+
             $options = array();
             if (!empty($messages))     $options['messages']      = $messages;
             if (!empty($systemPrompt)) $options['system_prompt'] = $systemPrompt;
 
-            // AI-Call
             try {
                 $ai     = AIService::getInstance();
                 $result = $ai->complete($prompt, $options);
@@ -508,27 +518,7 @@ class RunController extends Controller {
             }
 
             // DB-Logging — nicht-fatal: fehlende Tabelle/Spalte darf Antwort nicht blockieren
-            try {
-                $conversationForLog = array();
-                if (!empty($messages))  $conversationForLog = $messages;
-                if (!empty($prompt))    $conversationForLog[] = array('role' => 'user',      'content' => $prompt);
-                $conversationForLog[]   = array('role' => 'assistant', 'content' => $result['text']);
-                $convJson = json_encode($conversationForLog, JSON_UNESCAPED_UNICODE);
-                $this->fdb->insert('survey_ai_log', array(
-                    'user_id'           => 0,
-                    'session_token'     => $session->session,
-                    'provider'          => array_val($result, 'provider', ''),
-                    'model'             => array_val($result, 'model',    ''),
-                    'input_tokens'      => (int) array_val($result, 'input_tokens',  0),
-                    'output_tokens'     => (int) array_val($result, 'output_tokens', 0),
-                    'prompt_text'       => mb_substr((string) $prompt,         0, 60000, 'UTF-8'),
-                    'response_text'     => mb_substr((string) $result['text'], 0, 60000, 'UTF-8'),
-                    'conversation_json' => strlen($convJson) <= 1048576 ? $convJson : null,
-                    'created'           => date('Y-m-d H:i:s'),
-                ));
-            } catch (Throwable $logErr) {
-                formr_log_exception($logErr, 'AI_LOG');
-            }
+            AILogger::log($this->fdb, $result, $prompt, (array) $messages, 0, $session->session);
 
             $this->sendJsonResponse($result);
 
