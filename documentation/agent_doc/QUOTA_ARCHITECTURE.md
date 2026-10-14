@@ -142,6 +142,8 @@ These must not be silently selected by an implementation.
 ## Implementation status
 
 Isolated feature/quotas checkout created from the official base with no AI working files.
-Design only: no new application code, migration or executed quota tests yet.
-PHP, Composer and Docker were not found on the local PATH during preparation. Runtime
-verification needs a deliberately configured local runtime or the isolated VM test stack.
+The first pure rule evaluator is implemented as QuotaRules with standalone PHPUnit tests.
+See QUOTA_RULES.md for its input contract and limitations. It is not connected to the run
+lifecycle yet. No quota migration or persistence layer is implemented.
+A portable PHP 8.2 runtime and PHPUnit 11.5.6 now execute the rule tests locally, outside the
+repository. MariaDB concurrency, lifecycle and provider verification still require integration.

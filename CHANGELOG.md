@@ -2,6 +2,11 @@
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [Unreleased]
+
+### Added
+- 2026-10-14: Initial quota rule evaluator with automatic category cross-products, inclusive integer ranges, gap diagnostics and all-table eligibility checks. Invalid definitions or count snapshots raise errors separately from participant rejections. Standalone unit tests added. Not yet connected to run units, persistence or provider redirects.
+
 ## [v1.1.1] - 11.06.2026
 
 ### Fixes
