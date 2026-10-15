@@ -20,6 +20,7 @@ and run membership for participation. It is not an HTTP authorization boundary.
 |---|---|
 | create | Validate and store a definition for a run owned by the actor; cannot replace an existing definition |
 | admit | Read saved answers through a trusted DB-only callback and atomically save decision plus all assignments |
+| admitFromSurvey | Resolve saved demographics using persisted run-unit/item bindings, then use the same admission transaction |
 | complete | Require an admitted participation and its Complete unit session; record at most one completion |
 | adjust | Append a signed correction with actor, reason and retry key; effective count cannot become negative |
 | setLimit | Update limit and append old/new limit audit record atomically |
@@ -74,7 +75,7 @@ php vendor/bin/phpunit --no-configuration --do-not-cache-result tests/QuotaStore
 ```
 
 The PHP CLI needs pdo_mysql, mbstring and proc_open. On 2026-10-15, PHP 8.2.34,
-PHPUnit 11.5.6 and MariaDB 12.1.2 passed 26 storage tests / 110 assertions.
+PHPUnit 11.5.6 and MariaDB 12.1.2 passed 58 storage/answer tests / 227 assertions.
 Pure rules separately passed 53 tests / 106 assertions. Cases include duplicate concurrent
 admission/completion/correction, competing corrections, completion racing a correction,
 rollback after injected write failures, cohort isolation, ownership and invalid assignments.
@@ -82,8 +83,8 @@ These are core tests using minimal parent fixtures, not a full production migrat
 
 ## Required before application integration and release
 
-- Resolve actual survey/item/response identities and normalize supported metadata without
-  changing raw answers. Never concatenate an untrusted source key into SQL.
+- The initial saved-answer adapter is implemented; see QUOTA_ANSWERS.md for supported
+  metadata and limitations. Connect its bindings to editor validation and activation.
 - Attach definitions to a Quota unit; add explicit Complete lifecycle/retry behavior.
 - Implement activation/editing policy and agree test resets/testing-flag changes.
 - Check compatibility with existing application maintenance before release. Internal quota

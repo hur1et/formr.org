@@ -90,7 +90,7 @@ independent snapshots, all-table exclusion, exact codes and gap diagnostics.
 
 ## Remaining integration work
 
-Persistence and idempotent admission/completion are implemented and tested on MariaDB;
-see QUOTA_STORAGE.md. Remaining: activation and reset; load survey metadata/results;
+Persistence, idempotent admission/completion and initial saved-answer loading are implemented
+and tested on MariaDB; see QUOTA_STORAGE.md and QUOTA_ANSWERS.md. Remaining: activation and reset;
 run units and lifecycle; UI and input validation; provider/monitor/export integration.
 Do not call evaluate() to recheck capacity at Complete: already-admitted users may finish.

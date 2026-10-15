@@ -76,6 +76,14 @@ class QuotaStore {
         });
     }
 
+    /** Use only saved survey data; existing decisions still bypass all source loading. */
+    public function admitFromSurvey(int $runId, int $quotaId, int $sessionId, int $quotaRunUnitId): array {
+        return $this->admit($runId, $quotaId, $sessionId, function () use ($runId, $quotaId, $sessionId, $quotaRunUnitId) {
+            return (new QuotaAnswerLoader($this->pdo))->load($runId, $sessionId, $quotaRunUnitId,
+                $this->definitions($quotaId)['tables']);
+        });
+    }
+
     /** Record one completion without rechecking capacity; repeated calls return the same record. */
     public function complete(int $runId, int $quotaId, int $sessionId, int $unitSessionId): array {
         return $this->withQuota($runId, $quotaId, function () use ($runId, $quotaId, $sessionId, $unitSessionId) {

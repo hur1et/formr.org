@@ -153,6 +153,7 @@ The first pure rule evaluator is implemented as QuotaRules with standalone PHPUn
 See QUOTA_RULES.md for its input contract and limitations. On 2026-10-15, QuotaStore and
 additive patch 060 implement persisted definitions, decisions, assignments, completions,
 corrections and limit audits. See QUOTA_STORAGE.md for transaction rules and remaining gaps.
-Local tests: 53 rule tests / 106 assertions and 26 MariaDB tests / 110 assertions, including
-real concurrent writers. This is not connected to run units or deployed. Full schema migration,
+QuotaAnswerLoader now resolves persisted demographic responses through checked survey/item
+bindings (QUOTA_ANSWERS.md). Local tests: 53 rule tests / 106 assertions and 58 MariaDB tests /
+227 assertions, including real concurrent writers. This is not connected to run units or deployed. Full schema migration,
 lifecycle, existing-maintenance compatibility, provider and browser acceptance remain separate integration work.

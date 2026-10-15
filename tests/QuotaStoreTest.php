@@ -1,10 +1,12 @@
 <?php
 
 use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/../application/Services/QuotaRules.php';
 require_once __DIR__ . '/../application/Services/QuotaStore.php';
+require_once __DIR__ . '/../application/Services/QuotaAnswerLoader.php';
 
 /** Creates and drops only a randomly named disposable database, never the configured app DB. */
 #[Group('integration')]
@@ -30,7 +32,15 @@ class QuotaStoreTest extends TestCase {
         self::$db->exec('CREATE TABLE survey_runs (id INT UNSIGNED PRIMARY KEY, user_id INT UNSIGNED NOT NULL) ENGINE=InnoDB;
             CREATE TABLE survey_run_sessions (id INT UNSIGNED PRIMARY KEY, run_id INT UNSIGNED NOT NULL, testing TINYINT DEFAULT 0) ENGINE=InnoDB;
             CREATE TABLE survey_units (id INT UNSIGNED PRIMARY KEY, type VARCHAR(32) NOT NULL) ENGINE=InnoDB;
-            CREATE TABLE survey_unit_sessions (id INT UNSIGNED PRIMARY KEY, run_session_id INT UNSIGNED, unit_id INT UNSIGNED) ENGINE=InnoDB;');
+            CREATE TABLE survey_unit_sessions (id INT UNSIGNED PRIMARY KEY, run_session_id INT UNSIGNED, unit_id INT UNSIGNED,
+                run_unit_id INT UNSIGNED NULL, ended DATETIME NULL, state VARCHAR(32)) ENGINE=InnoDB;
+            CREATE TABLE survey_run_units (id INT UNSIGNED, run_id INT UNSIGNED, unit_id INT UNSIGNED, position INT, PRIMARY KEY (id, run_id)) ENGINE=InnoDB;
+            CREATE TABLE survey_studies (id INT UNSIGNED PRIMARY KEY, user_id INT UNSIGNED, results_table VARCHAR(64), valid INT, unlinked INT) ENGINE=InnoDB;
+            CREATE TABLE survey_items (study_id INT UNSIGNED, name VARCHAR(64), type VARCHAR(100), choice_list VARCHAR(255), label TEXT,
+                UNIQUE KEY study_item (study_id, name)) ENGINE=InnoDB;
+            CREATE TABLE survey_item_choices (study_id INT UNSIGNED, list_name VARCHAR(255), name VARCHAR(255), label TEXT) ENGINE=InnoDB;
+            CREATE TABLE quota_demo_results (session_id INT UNSIGNED PRIMARY KEY, study_id INT UNSIGNED, ended DATETIME,
+                age INT, sex VARCHAR(12), education VARCHAR(12)) ENGINE=InnoDB;');
         self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/060_quota_core.sql'));
     }
 
@@ -46,23 +56,24 @@ class QuotaStoreTest extends TestCase {
     protected function setUp(): void {
         foreach (['survey_quota_limit_changes', 'survey_quota_adjustments', 'survey_quota_completions',
             'survey_quota_assignments', 'survey_quota_decisions', 'survey_quota_groups', 'survey_quota_tables',
-            'survey_quotas', 'survey_unit_sessions', 'survey_units', 'survey_run_sessions', 'survey_runs'] as $table) {
+            'survey_quotas', 'quota_demo_results', 'survey_item_choices', 'survey_items', 'survey_studies',
+            'survey_run_units', 'survey_unit_sessions', 'survey_units', 'survey_run_sessions', 'survey_runs'] as $table) {
             self::$db->exec('DELETE FROM ' . $table);
         }
         self::$db->exec('INSERT INTO survey_runs VALUES (1, 7), (2, 8);
             INSERT INTO survey_run_sessions VALUES (1,1,0), (2,1,0), (3,1,0), (4,1,1), (5,1,1), (6,2,0);
             INSERT INTO survey_units VALUES (10,"Complete"), (11,"Survey");
-            INSERT INTO survey_unit_sessions VALUES (101,1,10), (102,2,10), (103,3,10), (104,4,10), (105,5,10), (106,6,10), (111,1,11);');
+            INSERT INTO survey_unit_sessions (id,run_session_id,unit_id) VALUES (101,1,10), (102,2,10), (103,3,10), (104,4,10), (105,5,10), (106,6,10), (111,1,11);');
         $this->store = new QuotaStore(self::$db);
         $this->quota = $this->store->create(1, 7, self::tables());
     }
 
     public static function tables(): array {
         return ['age_sex' => ['dimensions' => [
-            ['source' => 'demo.age', 'type' => 'integer', 'categories' => ['adult' => ['min' => 18, 'max' => 29]]],
-            ['source' => 'demo.sex', 'type' => 'category', 'categories' => ['female' => '2']],
+            ['source' => 'demo.age', 'run_unit_id' => 201, 'item_name' => 'age', 'type' => 'integer', 'categories' => ['adult' => ['min' => 18, 'max' => 29]]],
+            ['source' => 'demo.sex', 'run_unit_id' => 201, 'item_name' => 'sex', 'type' => 'category', 'categories' => ['female' => '2']],
         ], 'limits' => ['adult|female' => 1]],
-            'education' => ['dimensions' => [['source' => 'demo.education', 'type' => 'category',
+            'education' => ['dimensions' => [['source' => 'demo.education', 'run_unit_id' => 201, 'item_name' => 'education', 'type' => 'category',
                 'categories' => ['uni' => 'uni']]], 'limits' => ['uni' => 1]]];
     }
 
@@ -424,6 +435,169 @@ class QuotaStoreTest extends TestCase {
         self::assertSame($results[0]['result'], $results[1]['result']);
         self::assertSame(1, (int) self::$db->query('SELECT COUNT(*) FROM survey_quota_adjustments')->fetchColumn());
         self::assertSame(1, $this->store->getCounts(1, $this->quota, 'field')['education']['uni']);
+    }
+
+    private function seedSources(): void {
+        self::$db->exec('INSERT INTO survey_units VALUES (20,"Survey"),(30,"Quota");
+            INSERT INTO survey_run_units VALUES (201,1,20,1),(202,1,30,2);
+            INSERT INTO survey_studies VALUES (20,7,"quota_demo_results",1,0);
+            INSERT INTO survey_items VALUES (20,"age","number",NULL,"Age in years"),
+                (20,"sex","mc","sex_choices","Different visible label"),
+                (20,"education","select_one","education_choices","Education");
+            INSERT INTO survey_item_choices VALUES (20,"sex_choices","1","Male"), (20,"sex_choices","2","Female"),
+                (20,"education_choices","uni","University");
+            INSERT INTO survey_unit_sessions VALUES (120,1,20,201,NOW(),"ENDED"), (121,2,20,201,NOW(),"ENDED");
+            INSERT INTO quota_demo_results VALUES (120,20,NOW(),29,"2","uni"), (121,20,NOW(),90,"1","uni");');
+    }
+
+    public function testSavedDemographicsAdmitOnlyTheMatchingParticipationAndReplayDoesNotReload(): void {
+        $this->seedSources();
+        $admission = $this->store->admitFromSurvey(1, $this->quota, 1, 202);
+        self::assertSame('admitted', $admission['status']);
+        self::assertSame(['age_sex' => 'adult|female', 'education' => 'uni'], $admission['assignments']);
+        $other = $this->store->admitFromSurvey(1, $this->quota, 2, 202);
+        self::assertSame('unmatched_answer', $other['reason']);
+        self::$db->exec('UPDATE quota_demo_results SET age = NULL, sex = NULL WHERE session_id = 120');
+        self::assertSame($admission, $this->store->admitFromSurvey(1, $this->quota, 1, 202));
+        $this->store->complete(1, $this->quota, 1, 101);
+        $this->assertCounts(1);
+    }
+
+    public function testUnansweredSavedItemIsRejectionRatherThanStorageFailure(): void {
+        $this->seedSources();
+        self::$db->exec('UPDATE quota_demo_results SET age = NULL WHERE session_id = 120');
+        $result = $this->store->admitFromSurvey(1, $this->quota, 1, 202);
+        self::assertSame('missing_answer', $result['reason']);
+        self::assertSame('demo.age', $result['source']);
+        self::assertSame([], $result['assignments']);
+    }
+
+    #[DataProvider('invalidSourceCases')]
+    public function testInvalidSavedSourceNeverPersistsAnEligibilityDecision(string $mutation): void {
+        $this->seedSources();
+        self::$db->exec($mutation);
+        try {
+            $this->store->admitFromSurvey(1, $this->quota, 1, 202);
+            self::fail('Expected technical source validation failure.');
+        } catch (DomainException | InvalidArgumentException | UnexpectedValueException | PDOException $error) {
+            self::assertNotSame('', $error->getMessage());
+        }
+        self::assertSame(0, (int) self::$db->query('SELECT COUNT(*) FROM survey_quota_decisions')->fetchColumn());
+        self::assertSame(0, (int) self::$db->query('SELECT COUNT(*) FROM survey_quota_assignments')->fetchColumn());
+        self::assertFalse(self::$db->inTransaction());
+    }
+
+    public static function invalidSourceCases(): array {
+        return [
+            'missing result' => ['DELETE FROM quota_demo_results WHERE session_id=120'],
+            'wrong result study' => ['UPDATE quota_demo_results SET study_id=21 WHERE session_id=120'],
+            'unfinished result' => ['UPDATE quota_demo_results SET ended=NULL WHERE session_id=120'],
+            'wrong participation' => ['UPDATE survey_unit_sessions SET run_session_id=2 WHERE id=120'],
+            'wrong occurrence' => ['UPDATE survey_unit_sessions SET run_unit_id=999 WHERE id=120'],
+            'unbackfilled occurrence' => ['UPDATE survey_unit_sessions SET run_unit_id=NULL WHERE id=120'],
+            'duplicate visit' => ['INSERT INTO survey_unit_sessions VALUES (122,1,20,201,NOW(),"ENDED")'],
+            'unfinished visit' => ['UPDATE survey_unit_sessions SET ended=NULL WHERE id=120'],
+            'expired visit' => ['UPDATE survey_unit_sessions SET state="EXPIRED" WHERE id=120'],
+            'later source' => ['UPDATE survey_run_units SET position=3 WHERE id=201'],
+            'source in another run' => ['UPDATE survey_run_units SET run_id=2 WHERE id=201'],
+            'quota in another run' => ['UPDATE survey_run_units SET run_id=2 WHERE id=202'],
+            'wrong quota type' => ['UPDATE survey_units SET type="Page" WHERE id=30'],
+            'another owner' => ['UPDATE survey_studies SET user_id=8'],
+            'unlinked survey' => ['UPDATE survey_studies SET unlinked=1'],
+            'invalid survey' => ['UPDATE survey_studies SET valid=0'],
+            'missing metadata' => ['DELETE FROM survey_items WHERE name="age"'],
+            'label is not a variable name' => ['UPDATE survey_items SET name="Age in years" WHERE name="age"'],
+            'multiple choice' => ['UPDATE survey_items SET type="mc_multiple" WHERE name="sex"'],
+            'free text as integer' => ['UPDATE survey_items SET type="text" WHERE name="age"'],
+            'missing category' => ['DELETE FROM survey_item_choices WHERE name="2"'],
+            'duplicate category' => ['INSERT INTO survey_item_choices VALUES (20,"sex_choices","2","Duplicate")'],
+            'missing table' => ['UPDATE survey_studies SET results_table="absent_results"'],
+            'ambiguous table ownership' => ['INSERT INTO survey_studies VALUES (21,7,"quota_demo_results",1,0)'],
+            'table injection' => ['UPDATE survey_studies SET results_table="quota_demo_results` WHERE 1=1 --"'],
+        ];
+    }
+
+    public function testFractionalStorageIsNotRoundedOrPermanentlyRejected(): void {
+        $this->seedSources();
+        self::$db->exec('ALTER TABLE quota_demo_results MODIFY age DECIMAL(5,2)');
+        try {
+            self::$db->exec('UPDATE quota_demo_results SET age=28.50 WHERE session_id=120');
+            try {
+                $this->store->admitFromSurvey(1, $this->quota, 1, 202);
+                self::fail('Expected unsupported numeric storage error.');
+            } catch (UnexpectedValueException $error) {
+                self::assertSame('28.50', self::$db->query('SELECT age FROM quota_demo_results WHERE session_id=120')->fetchColumn());
+                self::assertSame(0, (int) self::$db->query('SELECT COUNT(*) FROM survey_quota_decisions')->fetchColumn());
+            }
+        } finally {
+            self::$db->exec('DELETE FROM quota_demo_results');
+            self::$db->exec('ALTER TABLE quota_demo_results MODIFY age INT');
+        }
+    }
+
+    public function testTechnicalSourceFailureCanBeRetriedAfterRepair(): void {
+        $this->seedSources();
+        self::$db->exec('UPDATE quota_demo_results SET ended=NULL WHERE session_id=120');
+        try {
+            $this->store->admitFromSurvey(1, $this->quota, 1, 202);
+            self::fail('Expected incomplete source error.');
+        } catch (UnexpectedValueException $error) {
+            self::assertSame(0, (int) self::$db->query('SELECT COUNT(*) FROM survey_quota_decisions')->fetchColumn());
+        }
+        self::$db->exec('UPDATE quota_demo_results SET ended=NOW() WHERE session_id=120');
+        self::assertSame('admitted', $this->store->admitFromSurvey(1, $this->quota, 1, 202)['status']);
+    }
+
+    public function testLeadingZeroCategoryIsPreservedInTextStorageAndRejectedForIntegerStorage(): void {
+        $this->seedSources();
+        $dimensions = self::tables()['age_sex']['dimensions'];
+        $dimensions[1]['categories']['female'] = '02';
+        $statement = self::$db->prepare('UPDATE survey_quota_tables SET dimensions_json=? WHERE quota_id=? AND code="age_sex"');
+        $statement->execute([json_encode($dimensions), $this->quota]);
+        self::$db->exec('UPDATE survey_item_choices SET name="02" WHERE name="2";
+            UPDATE quota_demo_results SET sex="02" WHERE session_id=120');
+        self::assertSame('admitted', $this->store->admitFromSurvey(1, $this->quota, 1, 202)['status']);
+        self::$db->exec('ALTER TABLE quota_demo_results MODIFY sex INT');
+        try {
+            $this->store->admitFromSurvey(1, $this->quota, 2, 202);
+            self::fail('Expected lossy choice storage error.');
+        } catch (UnexpectedValueException $error) {
+            self::assertSame(1, (int) self::$db->query('SELECT COUNT(*) FROM survey_quota_decisions')->fetchColumn());
+        } finally {
+            self::$db->exec('ALTER TABLE quota_demo_results MODIFY sex VARCHAR(12)');
+        }
+    }
+
+    public function testConflictingSourceBindingsAndMissingResultColumnsAreTechnicalFailures(): void {
+        $this->seedSources();
+        $tables = self::tables();
+        $tables['education']['dimensions'][0]['source'] = 'demo.sex';
+        self::$db->beginTransaction();
+        try {
+            (new QuotaAnswerLoader(self::$db))->load(1, 1, 202, $tables);
+            self::fail('Expected conflicting source error.');
+        } catch (InvalidArgumentException $error) {
+            self::assertStringContainsString('conflicting', $error->getMessage());
+        } finally {
+            self::$db->rollBack();
+        }
+        $tables = self::tables();
+        $tables['age_sex']['dimensions'][0]['item_name'] = 'removed_column';
+        self::$db->exec('UPDATE survey_items SET name="removed_column" WHERE name="age"');
+        self::$db->beginTransaction();
+        try {
+            (new QuotaAnswerLoader(self::$db))->load(1, 1, 202, $tables);
+            self::fail('Expected missing result column error.');
+        } catch (UnexpectedValueException $error) {
+            self::assertStringContainsString('column', $error->getMessage());
+        } finally {
+            self::$db->rollBack();
+        }
+    }
+
+    public function testSavedAnswerLoaderRefusesToRunOutsideTransaction(): void {
+        $this->expectException(LogicException::class);
+        (new QuotaAnswerLoader(self::$db))->load(1, 1, 202, self::tables());
     }
 
     public function testAdmittedParticipantsCanOverfillAfterLimitReduction(): void {
