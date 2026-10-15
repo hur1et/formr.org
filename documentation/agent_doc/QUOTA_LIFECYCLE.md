@@ -82,7 +82,8 @@ numbers must be coordinated with upstream before submission/deployment.
   238 tests / 588 assertions passed, 11 PHPUnit deprecations. This includes the 76
   focused rules/provider/run-unit tests, so those must not be counted a second time.
 - Focused standalone PHP lane: 76 tests / 178 assertions passed.
-- Disposable MariaDB lane: 92 tests / 360 assertions passed. Includes activation
+- Disposable MariaDB lane: 95 tests / 366 assertions passed. Includes native legacy
+  import metadata and Windows table-name/ownership handling as well as activation
   rollback, ownership/order/source failures, saved admissions/completions, all exits,
   missing identity recovery, injected terminal write failures and concurrent writers.
 - DOM editor lane: 12 tests passed, including read-only activated controls.
@@ -90,15 +91,17 @@ numbers must be coordinated with upstream before submission/deployment.
 - Production Webpack build passed, with three existing bundle-size warnings and an
   older Browserslist-data notice. No dependency upgrades were made for these notices.
 
-The MariaDB fixtures use minimal parent-table schemas and synthetic data. They do not
-prove migration compatibility with a full upgraded application database. The browser
+The MariaDB fixtures use minimal parent-table schemas and synthetic data. Separately,
+the full local baseline plus migrations was initialized, and native survey imports,
+login and authenticated editor rendering were checked on Windows. This is not an
+upgrade rehearsal against the VM database. The browser
 fixture exercises the real editor template/JS, but has no authenticated backend and
 its activation button is deliberately disabled. Earlier browser acceptance concerns
 draft editing only, not this full participant lifecycle or provider settings panel.
 
 Still required: researcher monitor and audited correction/limit controls; revocable
 read-only provider monitor; response export columns; portable run import/export;
-full-schema migration and authenticated browser runs; provider-approved test links;
+production-copy migration rehearsal and authenticated participant browser runs; provider-approved test links;
 pilot/retry/failure checks and a reviewed release/rollback procedure. Test reset/status
 changes and provider changes after activation need decisions before exposing them.
 The production VM and AI integration have not been changed.

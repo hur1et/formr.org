@@ -334,10 +334,6 @@ OVERVIEW_BODY
 
     public function displayUnitSessionsCount() {
         $reached = $this->getUnitSessionsCount();
-        $quotaUnit = in_array($this->type, ['Quota', 'Complete'], true);
-        $begunTitle = $quotaUnit ? 'Anzahl nicht abgeschlossener Teilnahmen' : 'Number of unfinished sessions';
-        $expiredTitle = $quotaUnit ? 'Anzahl abgelaufener Teilnahmen' : 'Number of expired sessions';
-        $finishedTitle = $quotaUnit ? 'Anzahl abgeschlossener Teilnahmen' : 'Number of finished sessions';
         if (!$reached['begun']) {
             $reached['begun'] = "";
         }
@@ -348,9 +344,9 @@ OVERVIEW_BODY
             $reached['expired'] = "";
         }
         return "
-			<span class='hastooltip badge badge-info' title='$begunTitle'>" . $reached['begun'] . "</span>
-			<span class='hastooltip badge' title='$expiredTitle'>" . $reached['expired'] . "</span>
-            <span class='hastooltip badge badge-success' title='$finishedTitle'>" . $reached['finished'] . "</span>
+			<span class='hastooltip badge badge-info' title='Number of unfinished sessions'>" . $reached['begun'] . "</span>
+			<span class='hastooltip badge' title='Number of expired sessions'>" . $reached['expired'] . "</span>
+            <span class='hastooltip badge badge-success' title='Number of finished sessions'>" . $reached['finished'] . "</span>
 		";
     }
 

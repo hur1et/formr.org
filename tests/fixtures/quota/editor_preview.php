@@ -30,51 +30,51 @@ $provider = ['mode'=>''];
 $body = '';
 $providerExit = '';
 $sources = [];
-foreach (['age'=>'Alter in Jahren', 'sex'=>'Geschlecht', 'education'=>'Bildungsabschluss'] as $name=>$label) {
+foreach (['age'=>'Age in years', 'sex'=>'Gender', 'education'=>'Education'] as $name=>$label) {
     $source = 'survey_201.' . $name;
     $sources[$source] = ['source'=>$source,'run_unit_id'=>201,'item_name'=>$name,'label'=>$label,
-        'survey_label'=>'Demografie','type'=>$name === 'age' ? 'integer' : 'category',
-        'choices'=>$name === 'sex' ? [['value'=>'1','label'=>'Männlich'],['value'=>'2','label'=>'Weiblich'],['value'=>'-9','label'=>'Keine Antwort']]
-            : ($name === 'education' ? [['value'=>'uni','label'=>'Hochschulabschluss'],['value'=>'other','label'=>'Anderer Abschluss']] : []),
+        'survey_label'=>'Demography','type'=>$name === 'age' ? 'integer' : 'category',
+        'choices'=>$name === 'sex' ? [['value'=>'1','label'=>'Male'],['value'=>'2','label'=>'Female'],['value'=>'-9','label'=>'No response']]
+            : ($name === 'education' ? [['value'=>'uni','label'=>'University degree'],['value'=>'other','label'=>'Other qualification']] : []),
         'supported'=>true];
 }
 $sources['survey_201.notes'] = ['source'=>'survey_201.notes','run_unit_id'=>201,'item_name'=>'notes',
-    'label'=>'Freitext','survey_label'=>'Demografie','type'=>null,'choices'=>[],'supported'=>false,
-    'warning'=>'Freitext kann nicht für die Quotierung verwendet werden.'];
+    'label'=>'Free text','survey_label'=>'Demography','type'=>null,'choices'=>[],'supported'=>false,
+    'warning'=>'Free text cannot be used for quotas.'];
 $unit = new class {
-    public $type='Quota', $description='Quotierung', $icon='fa-users', $position=20, $id=30, $run_unit_id=202, $special='';
+    public $type='Quota', $description='Quota', $icon='fa-users', $position=20, $id=30, $run_unit_id=202, $special='';
     public function displayUnitSessionsCount() { return ''; }
 };
 $template = 'quota';
 if ($module === 'abschluss') {
-    $unit->type='Complete'; $unit->description='Abschluss'; $unit->icon='fa-check-circle';
+    $unit->type='Complete'; $unit->description='Complete'; $unit->icon='fa-check-circle';
     $unit->position=40; $unit->id=40; $unit->run_unit_id=203; $template='complete';
 } elseif ($module === 'endseite') {
-    $unit->type='Endpage'; $unit->description='Ausschluss / Endseite'; $unit->icon='fa-stop';
+    $unit->type='Endpage'; $unit->description='Screen-out / stop page'; $unit->icon='fa-stop';
     $unit->position=30; $unit->id=50; $unit->run_unit_id=204; $template='endpage';
 }
 ob_start(); include $root . '/templates/admin/run/units/' . $template . '.php'; $dialog = ob_get_clean();
 ?>
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>formr – Quotierung: lokale Vorschau</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>formr – Quota: local preview</title>
 <link rel="stylesheet" href="/bootstrap.css"><link rel="stylesheet" href="/roboto-font.css">
 <link rel="stylesheet" href="/font-awesome.css"><link rel="stylesheet" href="/adminlte.css"><link rel="stylesheet" href="/admin.css">
 <style>body{padding:20px 12px;max-width:1050px;margin:auto;background:#ecf0f5}.quota-preview-note{margin:10px 0}.quota-preview-technical{overflow-wrap:anywhere}.quota-preview-technical pre{max-height:220px;overflow:auto}main .box-body{padding:15px}main .run_unit_dialog{padding-bottom:10px}</style>
 </head><body>
-<p class="text-muted quota-preview-note">Lokale Vorschau mit Beispieldaten. Speichern betrifft nur diesen Browser, keine Studie.</p>
-<nav class="btn-group" aria-label="Bausteine der Vorschau">
-    <a class="btn btn-default" href="/">Quotierung</a>
-    <a class="btn btn-default" href="/?modul=abschluss">Abschluss</a>
-    <a class="btn btn-default" href="/?modul=endseite">Endseite</a>
+<p class="text-muted quota-preview-note">Local preview with example data. Saving affects this browser only, not a study.</p>
+<nav class="btn-group" aria-label="Preview modules">
+    <a class="btn btn-default" href="/">Quota</a>
+    <a class="btn btn-default" href="/?modul=abschluss">Complete</a>
+    <a class="btn btn-default" href="/?modul=endseite">Stop page</a>
 </nav>
 <main class="box box-primary" style="margin-top:15px">
-    <div class="box-header with-border"><h1 class="box-title">Run bearbeiten</h1></div>
+    <div class="box-header with-border"><h1 class="box-title">Edit Run</h1></div>
     <div class="box-body"><form class="form-horizontal form-inline edit_run">
         <?php include $root . '/templates/admin/run/units/unit.php'; ?>
     </form></div>
 </main>
 <p id="fixture-status" role="status"></p>
-<details class="quota-preview-technical"><summary>Gespeicherte Definition (technisch)</summary><pre id="fixture-saved"></pre></details>
+<details class="quota-preview-technical"><summary>Saved definition (technical)</summary><pre id="fixture-saved"></pre></details>
 <script type="module">
 import { initQuotaEditor } from '/quota-editor.js';
 document.querySelector('.position').readOnly=true;
@@ -90,10 +90,10 @@ if (!editor) {
     }
 }
 const activate = document.querySelector('.quota-activate');
-if (activate) { activate.disabled=true; activate.title='Aktivierung ist nur in der vollständigen, angemeldeten Anwendung möglich.'; }
+if (activate) { activate.disabled=true; activate.title='Activation is only available in the full authenticated application.'; }
 document.querySelector('form').addEventListener('submit', (event)=>event.preventDefault());
 const testButton = document.querySelector('.unit_test');
-if (testButton) testButton.addEventListener('click', (event)=>{event.preventDefault();document.querySelector('#fixture-status').textContent='Ein Teilnahmetest ist nur in der vollständigen Anwendung möglich.';});
+if (testButton) testButton.addEventListener('click', (event)=>{event.preventDefault();document.querySelector('#fixture-status').textContent='Participant testing is only available in the full application.';});
 document.querySelector('.unit_save').addEventListener('click', (event) => {
     event.preventDefault();
     if (editor) {
@@ -104,6 +104,6 @@ document.querySelector('.unit_save').addEventListener('click', (event) => {
         const values=Object.fromEntries(new FormData(document.querySelector('form')));
         sessionStorage.setItem('quota-preview-<?= $module ?>',JSON.stringify(values));
     }
-    document.querySelector('#fixture-status').textContent='Entwurf in der lokalen Vorschau gespeichert.';
+    document.querySelector('#fixture-status').textContent='Draft saved in the local preview.';
 });
 </script></body></html>

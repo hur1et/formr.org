@@ -5,12 +5,16 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 ## [Unreleased]
 
 ### Added
-- 2026-10-15: German quota/Complete interface, participant messages and configuration validation. Quota forms use native formr styling with compact group tables; the local preview now uses the actual module wrapper/styles and includes Complete/end-page views. Identifiers and counting behavior are unchanged.
+- 2026-10-15: Quota/Complete forms use native formr styling with compact group tables and English interface text. The local preview uses the actual module wrapper/styles and includes Complete/end-page views. Module explanations describe configuration, counting and provider exits. Identifiers and counting behavior are unchanged.
 - 2026-10-15: Explicit quota activation, native admission/completion execution and retry-safe terminal exits. One configurable provider profile per run or explicit local completion; captured provider identities, three return URL templates and Page screen-out option. Test exits show plain text only. Patch 062 and lifecycle/provider regression tests; monitors, response exports and full application acceptance remain pending.
 - 2026-10-15: Development Quota/Complete run-editor entries and owner-validated quota drafts. Supports variable selection, integer ranges, category crossing and limits; drafts do not execute participant admission/completion yet. Patch 061, browser fixture, DOM and MariaDB draft tests added.
 - 2026-10-15: Saved demographic answer adapter for the quota core. Resolves exact survey run-unit and variable bindings, validates ownership/metadata and distinguishes unanswered items from broken or ambiguous sources. Additional MariaDB tests; editor and run-unit lifecycle integration remain pending.
 - 2026-10-15: Quota persistence core with atomic admission, unique completion, separate test/field totals and audited, retry-safe count/limit changes. Opt-in MariaDB tests cover concurrent writers and rollback failures. Additive patch 060; run-unit, lifecycle and deletion integration still required before deployment.
 - 2026-10-14: Initial quota rule evaluator with automatic category cross-products, inclusive integer ranges, gap diagnostics and all-table eligibility checks. Invalid definitions or count snapshots raise errors separately from participant rejections. Standalone unit tests added. Not yet connected to run units, persistence or provider redirects.
+
+### Fixes
+- 2026-10-15: Quota sources accept the legacy NULL validity flag left by native survey imports and resolve physical table names according to MariaDB's case-sensitivity setting. Ownership ambiguity remains an error, including case variants on Windows. Three additional MariaDB regression cases.
+- 2026-10-15: Webpack's Babel exclusion for core-js/regenerator-runtime now recognizes Windows path separators. Prevents recursively injected polyfills from crashing browser startup before CSS is installed.
 
 ## [v1.1.1] - 11.06.2026
 

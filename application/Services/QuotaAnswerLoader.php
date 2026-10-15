@@ -62,7 +62,9 @@ class QuotaAnswerLoader {
             JOIN survey_studies s ON s.id = ru.unit_id AND s.user_id = r.user_id
             WHERE ru.id = ? AND ru.run_id = ? AND ru.position < ?',
             ['Survey', $dimension['run_unit_id'], $runId, $quotaPosition])->fetch(PDO::FETCH_ASSOC);
-        if (!$study || (int) $study['valid'] !== 1 || (int) $study['unlinked'] !== 0) {
+        // Native SurveyStudy imports leave this legacy flag NULL; load() considers
+        // an existing study valid. Still reject an explicit invalid flag here.
+        if (!$study || ($study['valid'] !== null && (int) $study['valid'] !== 1) || (int) $study['unlinked'] !== 0) {
             throw new DomainException('Quota source must be a valid linked survey before the Quota unit, owned by the run owner.');
         }
         $item = $this->query('SELECT name, type, choice_list, label FROM survey_items
@@ -73,15 +75,18 @@ class QuotaAnswerLoader {
         $this->validateItem($study, $item, $dimension);
         $table = self::identifier($study['results_table']);
         $column = self::identifier($item['name']);
-        $owners = $this->query('SELECT id FROM survey_studies WHERE BINARY results_table = ?',
-            [$study['results_table']])->fetchAll(PDO::FETCH_COLUMN);
+        $owners = $this->query('SELECT id FROM survey_studies WHERE BINARY results_table = BINARY ?
+            OR (@@lower_case_table_names<>0 AND BINARY LOWER(results_table)=BINARY LOWER(?))',
+            [$study['results_table'],$study['results_table']])->fetchAll(PDO::FETCH_COLUMN);
         if (count($owners) !== 1 || (int) $owners[0] !== (int) $study['id']) {
             throw new UnexpectedValueException('Survey result table ownership is ambiguous.');
         }
         $sqlType = $this->query('SELECT c.DATA_TYPE FROM information_schema.COLUMNS c
             JOIN information_schema.TABLES t ON t.TABLE_SCHEMA = c.TABLE_SCHEMA AND t.TABLE_NAME = c.TABLE_NAME
-            WHERE c.TABLE_SCHEMA = DATABASE() AND BINARY c.TABLE_NAME = ? AND BINARY c.COLUMN_NAME = ?
-            AND t.TABLE_TYPE = ?', [$study['results_table'], $item['name'], 'BASE TABLE'])->fetchColumn();
+            WHERE c.TABLE_SCHEMA = DATABASE() AND (BINARY c.TABLE_NAME = BINARY ?
+                OR (@@lower_case_table_names<>0 AND BINARY LOWER(c.TABLE_NAME)=BINARY LOWER(?)))
+            AND BINARY c.COLUMN_NAME = ? AND t.TABLE_TYPE = ?',
+            [$study['results_table'],$study['results_table'],$item['name'],'BASE TABLE'])->fetchColumn();
         $integerTypes = ['tinyint', 'smallint', 'mediumint', 'int', 'bigint'];
         $allowedTypes = $dimension['type'] === 'integer' ? $integerTypes
             : array_merge($integerTypes, ['char', 'varchar', 'tinytext', 'text', 'mediumtext', 'longtext']);

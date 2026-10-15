@@ -46,7 +46,7 @@ module.exports = (env, argv) => {
                 {
                     test: /\.js$/,
                     // Transpile all JS, including most node_modules, but skip core-js and regenerator-runtime
-                    exclude: /node_modules\/(core-js|regenerator-runtime)\//,
+                    exclude: /node_modules[\\/](core-js|regenerator-runtime)[\\/]/,
                     use: {
                       loader: 'babel-loader',
                       options: {

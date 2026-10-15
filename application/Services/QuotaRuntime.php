@@ -14,7 +14,7 @@ class QuotaRuntime {
         if (!in_array($kind,['Quota','Complete','screen_out'],true)) { throw new InvalidArgumentException('Unknown quota runtime unit.'); }
         $providers = new QuotaProviderStore($this->pdo);
         $active = $providers->active($runId);
-        if (!$active) { return ['content'=>'<p>Die Studie ist vorübergehend nicht verfügbar. Bitte später erneut versuchen.</p>']; }
+        if (!$active) { return ['content'=>'<p>This study is temporarily unavailable. Please try again later.</p>']; }
         $type = $kind === 'screen_out' ? 'Page' : $kind;
         $unit = $this->query('SELECT rs.testing,rs.ended AS run_ended,ru.position FROM survey_unit_sessions us
             JOIN survey_run_sessions rs ON rs.id=us.run_session_id
@@ -60,12 +60,12 @@ class QuotaRuntime {
             $outcome = 'screen_out';
         }
         $url = $active['provider']->resolve($outcome,$providers->identity((int) $active['quota_id'],$sessionId));
-        $content = $pageContent ?: ($outcome === 'complete' ? '<p>Vielen Dank. Ihre Teilnahme ist abgeschlossen.</p>'
-            : '<p>Vielen Dank. Ihre Teilnahme ist beendet.</p>');
+        $content = $pageContent ?: ($outcome === 'complete' ? '<p>Thank you. Your participation is complete.</p>'
+            : '<p>Thank you. Your participation has ended.</p>');
         $test = (int) $unit['testing'] === 1;
         if ($test && $url !== null) {
             // Plain text only: even following a preview link would contact the real provider.
-            $content .= '<p>Test-Rückleitung: ' . htmlspecialchars($outcome,ENT_QUOTES,'UTF-8') . '</p><pre>'
+            $content .= '<p>Test exit: ' . htmlspecialchars($outcome,ENT_QUOTES,'UTF-8') . '</p><pre>'
                 . htmlspecialchars($url,ENT_QUOTES,'UTF-8') . '</pre>';
         }
         $endedAt = $this->finish((int) $active['quota_id'],$runId,$sessionId,$unitSessionId,$outcome,$test);

@@ -9,7 +9,7 @@ class Quota extends RunUnit {
 
     public function create($options = []) {
         if (!empty($options['special']) || !empty($options['importing']) || !empty($options['add_to_run'])) {
-            throw new InvalidArgumentException('Quotenmodule können noch nicht importiert oder als Sonderbausteine wiederverwendet werden.');
+            throw new InvalidArgumentException('Quota drafts cannot yet be imported or reused as special units.');
         }
         $editor = new QuotaEditor($this->db->pdo());
         if ($this->id) {
@@ -17,16 +17,16 @@ class Quota extends RunUnit {
         }
         if (isset($options['quota_tables'])) {
             if (!$this->id || !is_string($options['quota_tables'])) {
-                throw new InvalidArgumentException('Bitte zuerst das Quotenmodul anlegen, anschließend die Tabellen speichern.');
+                throw new InvalidArgumentException('Create the Quota unit before saving its tables.');
             }
             $tables = json_decode($options['quota_tables'], true);
             if (json_last_error() !== JSON_ERROR_NONE || !is_array($tables)) {
-                throw new InvalidArgumentException('Die Quoteneinstellungen konnten nicht gelesen werden. Bitte neu laden und erneut versuchen.');
+                throw new InvalidArgumentException('Quota configuration could not be read. Reload and try again.');
             }
             $warnings = $editor->save((int) $this->run->id, (int) $this->run_unit_id,
                 (int) $this->run->user_id, $tables);
             foreach ($warnings as $warning) {
-                alert(h('Nicht abgedeckter Zahlenbereich: ' . $warning['source'] . ' ' . $warning['min'] . '–' . $warning['max']), 'alert-warning');
+                alert(h('Uncovered integer range: ' . $warning['source'] . ' ' . $warning['min'] . '–' . $warning['max']), 'alert-warning');
             }
         }
         if (!empty($options['quota_activate'])) {
@@ -49,7 +49,7 @@ class Quota extends RunUnit {
     }
 
     public function getExportUnit() {
-        throw new DomainException('Import und Export von Quotenmodulen sind noch nicht verfügbar.');
+        throw new DomainException('Quota draft import/export is not implemented yet.');
     }
 
     public function getUnitSessionOutput(UnitSession $unitSession) {
@@ -57,7 +57,7 @@ class Quota extends RunUnit {
             return $this->quotaRuntime()->execute('Quota',(int) $this->run->id,(int) $unitSession->run_session_id,
                 (int) $unitSession->run_unit_id,(int) $unitSession->id,$unitSession->isExecutedByCron());
         } catch (Throwable $error) {
-            return ['content'=>'<p>Die Studie ist vorübergehend nicht verfügbar. Bitte erneut versuchen oder das Studienteam kontaktieren.</p>',
+            return ['content'=>'<p>This study is temporarily unavailable. Please retry or contact the study team.</p>',
                 'log'=>$this->getLogMessage('quota_error','Quota processing failed (' . get_class($error) . '); retry remains available.')];
         }
     }

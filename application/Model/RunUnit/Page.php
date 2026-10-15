@@ -149,7 +149,7 @@ class Page extends RunUnit {
                     (int) $unitSession->run_session_id,(int) $unitSession->run_unit_id,(int) $unitSession->id,
                     false,$output['content']);
             } catch (Throwable $error) {
-                return ['content'=>'<p>Die Rückleitung konnte nicht vorbereitet werden. Bitte erneut versuchen oder das Studienteam kontaktieren.</p>',
+                return ['content'=>'<p>The return link could not be prepared. Please retry or contact the study team.</p>',
                     'log'=>$this->getLogMessage('quota_error','Screen-out failed (' . get_class($error) . '); retry remains available.')];
             }
         }

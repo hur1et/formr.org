@@ -31,11 +31,11 @@ class QuotaStore {
         $rules = new QuotaRules($tables);
         foreach ($rules->getGroups() as $tableCode => $groups) {
             if (strlen((string) $tableCode) > 64) {
-                throw new InvalidArgumentException('Die Tabellenkennung darf höchstens 64 Zeichen enthalten.');
+                throw new InvalidArgumentException('Quota table code must not exceed 64 characters.');
             }
             foreach ($groups as $code => $group) {
                 if (strlen((string) $code) > 255 || $group['limit'] > 4294967295) {
-                    throw new InvalidArgumentException('Eine Gruppenkennung oder Sollzahl überschreitet den zulässigen Bereich.');
+                    throw new InvalidArgumentException('A group code or limit exceeds the supported range.');
                 }
             }
         }
@@ -57,13 +57,13 @@ class QuotaStore {
     public function activate(int $runId, int $actorId): int {
         return $this->transaction(function () use ($runId, $actorId) {
             if (!$this->query('SELECT id FROM survey_runs WHERE id=? AND user_id=? FOR UPDATE', [$runId,$actorId])->fetch()) {
-                throw new DomainException('Nur die verantwortliche Person kann die Quotierung aktivieren.');
+                throw new DomainException('Only the run owner can activate quotas.');
             }
             $existing = $this->query('SELECT quota_id FROM survey_quota_lifecycle WHERE run_id=?', [$runId])->fetchColumn();
             if ($existing !== false) { return (int) $existing; }
             $draft = $this->query('SELECT run_unit_id,tables_json FROM survey_quota_drafts WHERE run_id=? FOR UPDATE', [$runId])->fetch(PDO::FETCH_ASSOC);
             $exit = $this->query('SELECT complete_run_unit_id,provider_json FROM survey_quota_exit_drafts WHERE run_id=? FOR UPDATE', [$runId])->fetch(PDO::FETCH_ASSOC);
-            if (!$draft || !$exit) { throw new DomainException('Bitte vor der Aktivierung sowohl die Quotentabellen als auch die Rückleitung im Abschlussbaustein speichern.'); }
+            if (!$draft || !$exit) { throw new DomainException('Save the quota tables and Complete exit settings before activation.'); }
             $tables = json_decode($draft['tables_json'], true, 512, JSON_THROW_ON_ERROR);
             (new QuotaEditor($this->pdo))->validateConfiguration($runId,(int) $draft['run_unit_id'],$actorId,$tables);
             $config = new QuotaProviderConfig(json_decode($exit['provider_json'],true,512,JSON_THROW_ON_ERROR));
@@ -75,10 +75,10 @@ class QuotaStore {
                 || (int) $quotaUnits[0]['id'] !== (int) $draft['run_unit_id']
                 || (int) $completeUnits[0]['id'] !== (int) $exit['complete_run_unit_id']
                 || (int) $completeUnits[0]['position'] <= (int) $quotaUnits[0]['position']) {
-                throw new DomainException('Bitte genau ein Quotenmodul und danach genau einen Abschlussbaustein in diesem Run verwenden.');
+                throw new DomainException('Use exactly one Quota followed by one Complete in this run.');
             }
             if ($this->query('SELECT position FROM survey_run_units WHERE run_id=? GROUP BY position HAVING COUNT(*)>1', [$runId])->fetch()) {
-                throw new DomainException('Vor der Aktivierung müssen alle Run-Positionen eindeutig sein.');
+                throw new DomainException('Run positions must be unique before quota activation.');
             }
             $quotaId = $this->writeDefinition($runId,$tables);
             $this->query('INSERT INTO survey_quota_lifecycle

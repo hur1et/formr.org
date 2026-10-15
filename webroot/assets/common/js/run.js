@@ -20,7 +20,6 @@ import {
   }
   RunUnit.prototype.init = function (content) {
     this.block.htmlPolyfill($($.parseHTML(content))); // .html annoying but necessary, somewhere in here a clone where there should be none, appears
-    this.quotaLanguage = ['Quota', 'Complete', 'Endpage'].includes(this.block.find('.run_unit_inner').attr('data-type'));
     this.quotaEditor = initQuotaEditor(this.block[0]);
     this.position = this.block.find(".run_unit_position input.position");
 
@@ -153,7 +152,7 @@ import {
     this.save_button
       .attr("disabled", true)
       .removeClass("btn-info")
-      .text(this.quotaLanguage ? "Gespeichert" : "Saved")
+      .text("Saved")
       .click($.proxy(this.save, this));
   };
 
@@ -172,7 +171,7 @@ import {
       this.save_button
         .addClass("btn-info")
         .removeAttr("disabled")
-        .text(this.quotaLanguage ? "Änderungen speichern" : "Save changes");
+        .text("Save changes");
       this.test_button.attr("disabled", "disabled");
     }
   };
@@ -418,7 +417,7 @@ import {
             this.save_button
               .attr("disabled", true)
               .removeClass("btn-info")
-              .text(this.quotaLanguage ? "Gespeichert" : "Saved")
+              .text("Saved")
               .click($.proxy(this.save, this));
             this.unsavedChanges = false;
             this.test_button.removeAttr("disabled");
@@ -430,17 +429,6 @@ import {
       .fail(
         $.proxy(function (e, x, settings, exception) {
           this.save_button.removeAttr("disabled").html(old_text);
-          if (this.quotaLanguage) {
-            let message = 'Die Einstellungen konnten nicht gespeichert werden. Bitte die Verbindung prüfen und erneut versuchen.';
-            if (e.status === 401 || e.status === 403) {
-              message = 'Bitte in einem neuen Tab erneut anmelden und anschließend hier speichern. Die Eingaben bleiben erhalten.';
-            } else if (e.status === 400 && e.responseText) {
-              const response = $($.parseHTML(e.responseText));
-              message = response.find('.alert').addBack('.alert').text() || message;
-            }
-            bootstrap_alert($('<span>').text(message).html(), 'Speichern fehlgeschlagen.', this.block);
-            return;
-          }
           ajaxErrorHandling(e, x, settings, exception);
         }, this)
       );

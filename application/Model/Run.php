@@ -1176,7 +1176,7 @@ class Run extends Model
                 } catch (Throwable $error) {
                     // Do not expose provider identities or database details in participant output.
                     formr_log_exception(new RuntimeException('Run execution failed (' . get_class($error) . ').'), 'Quota/runtime');
-                    $entryFailure = ['body'=>'<p>Die Studie ist vorübergehend nicht verfügbar. Bitte später erneut versuchen oder das Studienteam kontaktieren.</p>'];
+                    $entryFailure = ['body'=>'<p>This study is temporarily unavailable. Please try again later or contact the study team.</p>'];
                 }
                 $output = $entryFailure ?? $runSession->execute();
             } else {

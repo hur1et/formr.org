@@ -1,7 +1,27 @@
 # Saved demographic answer adapter
 
 2026-10-15. QuotaAnswerLoader connects persisted formr responses to QuotaStore's
-admission transaction. Run-unit UI and lifecycle integration are still pending.
+admission transaction. See QUOTA_LIFECYCLE.md for the subsequent run-unit integration.
+
+## Native imports and database identifier handling
+
+The full local application revealed two assumptions not represented in the original
+minimal fixtures. Native SurveyStudy::createFromData saves the legacy `valid` flag as
+NULL; SurveyStudy::load treats an existing study as valid independently of this flag.
+Quota sources therefore accept NULL or 1, while still rejecting an explicit 0 and
+requiring the owned linked Survey, actual base table, metadata and supported columns.
+
+Table-name comparisons follow `@@lower_case_table_names`. Case-sensitive servers retain
+binary exact matching. On case-insensitive servers, including the Windows local DB,
+table metadata and ownership checks compare binary lowercased names. This also prevents
+case variants from concealing two studies pointing to the same physical table. Stored
+variable names, response values and source keys are unchanged. No fuzzy label matching
+or guessed column names are introduced. Three regression cases cover these differences.
+
+The focused disposable MariaDB lane now passes 95 tests / 366 assertions. Fresh local
+installation applied schema.sql plus patches 043–062; the native demo imports and the
+saved two-table quota draft were inspected on that full schema. This is not a production
+database migration or a completed participant/provider acceptance test.
 
 ## Binding contract
 

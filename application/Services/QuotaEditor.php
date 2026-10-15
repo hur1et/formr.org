@@ -5,7 +5,7 @@ class QuotaEditor {
     public function __construct(private PDO $pdo) {
         if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'mysql'
             || $pdo->getAttribute(PDO::ATTR_ERRMODE) !== PDO::ERRMODE_EXCEPTION) {
-            throw new InvalidArgumentException('Die Quotierung benötigt eine MariaDB-Verbindung mit aktivierter Fehlerbehandlung.');
+            throw new InvalidArgumentException('Quota editor requires MariaDB PDO with exception error mode.');
         }
     }
 
@@ -13,7 +13,7 @@ class QuotaEditor {
         $row = $this->query('SELECT ru.position FROM survey_run_units ru JOIN survey_runs r ON r.id=ru.run_id
             JOIN survey_units u ON u.id=ru.unit_id WHERE ru.id=? AND ru.run_id=? AND r.user_id=? AND u.type=?',
             [$runUnitId, $runId, $actorId, 'Quota'])->fetch(PDO::FETCH_ASSOC);
-        if (!$row) { throw new DomainException('Nur die verantwortliche Person kann das Quotenmodul dieses Runs bearbeiten.'); }
+        if (!$row) { throw new DomainException('Quota editor requires the run owner and its Quota unit.'); }
         return $row;
     }
 
@@ -21,14 +21,17 @@ class QuotaEditor {
         $unit = $this->assertUnit($runId, $runUnitId, $actorId);
         $rows = $this->query('SELECT ru.id AS run_unit_id, ru.description AS survey_label, s.id AS study_id,
             i.name, i.label, i.type, i.choice_list, c.DATA_TYPE AS storage_type,
-            (SELECT COUNT(*) FROM survey_studies owner WHERE BINARY owner.results_table=BINARY s.results_table) AS result_owners
+            (SELECT COUNT(*) FROM survey_studies owner WHERE BINARY owner.results_table=BINARY s.results_table
+                OR (@@lower_case_table_names<>0 AND BINARY LOWER(owner.results_table)=BINARY LOWER(s.results_table))) AS result_owners
             FROM survey_run_units ru JOIN survey_units u ON u.id=ru.unit_id AND u.type="Survey"
-            JOIN survey_studies s ON s.id=ru.unit_id AND s.user_id=? AND s.valid=1 AND s.unlinked=0
+            JOIN survey_studies s ON s.id=ru.unit_id AND s.user_id=? AND (s.valid IS NULL OR s.valid=1) AND s.unlinked=0
             JOIN survey_items i ON i.study_id=s.id
             LEFT JOIN information_schema.TABLES t ON t.TABLE_SCHEMA=DATABASE()
-                AND BINARY t.TABLE_NAME=BINARY s.results_table AND t.TABLE_TYPE="BASE TABLE"
+                AND (BINARY t.TABLE_NAME=BINARY s.results_table
+                    OR (@@lower_case_table_names<>0 AND BINARY LOWER(t.TABLE_NAME)=BINARY LOWER(s.results_table)))
+                AND t.TABLE_TYPE="BASE TABLE"
             LEFT JOIN information_schema.COLUMNS c ON c.TABLE_SCHEMA=t.TABLE_SCHEMA AND c.TABLE_NAME=t.TABLE_NAME
-                AND BINARY c.TABLE_NAME=BINARY s.results_table AND BINARY c.COLUMN_NAME=BINARY i.name
+                AND BINARY c.COLUMN_NAME=BINARY i.name
             WHERE ru.run_id=? AND ru.position<? ORDER BY ru.position, ru.id, i.name',
             [$actorId, $runId, $unit['position']])->fetchAll(PDO::FETCH_ASSOC);
         $sources = [];
@@ -47,7 +50,7 @@ class QuotaEditor {
             $sources[$key] = ['source' => $key, 'run_unit_id' => (int) $row['run_unit_id'], 'item_name' => $row['name'],
                 'label' => strip_tags($row['label'] ?? ''), 'survey_label' => $row['survey_label'],
                 'type' => $kind, 'storage_type' => $row['storage_type'], 'choices' => $choices, 'supported' => $supported,
-                'warning' => $supported ? '' : 'Dieser Fragetyp, diese Antwortliste oder Ergebnisspalte wird für die Quotierung nicht unterstützt.'];
+                'warning' => $supported ? '' : 'This item type, choice list or result column is not supported for quotas.'];
         }
         return $sources;
     }
@@ -60,19 +63,19 @@ class QuotaEditor {
     }
 
     public function save(int $runId, int $runUnitId, int $actorId, array $tables): array {
-        if ($this->pdo->inTransaction()) { throw new LogicException('Die Quoteneinstellungen können während eines anderen Speichervorgangs nicht gespeichert werden.'); }
+        if ($this->pdo->inTransaction()) { throw new LogicException('Quota editor must own its transaction.'); }
         $rules = new QuotaRules($tables);
         $this->pdo->beginTransaction();
         try {
             if (!$this->query('SELECT id FROM survey_runs WHERE id=? AND user_id=? FOR UPDATE', [$runId,$actorId])->fetch()) {
-                throw new DomainException('Nur die verantwortliche Person kann die Quotierung bearbeiten.');
+                throw new DomainException('Quota editor requires the run owner.');
             }
             if ($this->query('SELECT id FROM survey_quotas WHERE run_id=?', [$runId])->fetch()) {
-                throw new DomainException('Eine aktivierte Quotierung kann nicht mehr als Entwurf bearbeitet werden. Bitte den Editor neu laden.');
+                throw new DomainException('An existing counting definition cannot be edited as a draft.');
             }
             $existing = $this->query('SELECT run_unit_id FROM survey_quota_drafts WHERE run_id=?', [$runId])->fetchColumn();
             if ($existing !== false && (int) $existing !== $runUnitId) {
-                throw new DomainException('Bitte mehrere Tabellen in einem gemeinsamen Quotenmodul je Run verwenden.');
+                throw new DomainException('Use multiple tables in one Quota unit per run.');
             }
             $this->validateConfiguration($runId, $runUnitId, $actorId, $tables);
             $this->query('INSERT INTO survey_quota_drafts (run_id,run_unit_id,tables_json) VALUES (?,?,?)
@@ -96,21 +99,21 @@ class QuotaEditor {
                 if (!$source || !$source['supported'] || $source['type'] !== $dimension['type']
                     || $source['run_unit_id'] !== ($dimension['run_unit_id'] ?? null)
                     || $source['item_name'] !== ($dimension['item_name'] ?? null)) {
-                    throw new InvalidArgumentException('Bitte eine unterstützte, gespeicherte Variable aus einem vorangehenden Fragebogen auswählen.');
+                    throw new InvalidArgumentException('Select a supported, saved variable from a preceding survey.');
                 }
                 if ($source['type'] === 'category') {
                     $values = array_map('strval', array_column($source['choices'], 'value'));
                     if (count(array_unique($values)) !== count($values)) {
-                        throw new InvalidArgumentException('Die Antwortcodes des Fragebogens sind nicht eindeutig.');
+                        throw new InvalidArgumentException('Ambiguous survey choice codes.');
                     }
                     foreach ($dimension['categories'] as $value) {
                         if (!in_array((string) $value, $values, true)) {
-                            throw new InvalidArgumentException('Quotenkategorien müssen die gespeicherten Antwortcodes verwenden.');
+                            throw new InvalidArgumentException('Quota categories must use stored answer codes.');
                         }
                         if (in_array($source['storage_type'], ['tinyint','smallint','mediumint','int','bigint'], true)) {
                             $integer = filter_var($value, FILTER_VALIDATE_INT);
                             if ($integer === false || (string) $integer !== (string) $value) {
-                                throw new InvalidArgumentException('Dieser Antwortcode lässt sich in der ganzzahligen Ergebnisspalte nicht unverändert speichern.');
+                                throw new InvalidArgumentException('Integer storage cannot preserve this answer code.');
                             }
                         }
                     }
@@ -118,10 +121,10 @@ class QuotaEditor {
             }
         }
         foreach ($rules->getGroups() as $code => $groups) {
-            if (strlen((string) $code) > 64) { throw new InvalidArgumentException('Die Tabellenkennung darf höchstens 64 Zeichen enthalten.'); }
+            if (strlen((string) $code) > 64) { throw new InvalidArgumentException('Table code is too long.'); }
             foreach ($groups as $groupCode => $group) {
                 if (strlen((string) $groupCode) > 255 || $group['limit'] > 4294967295) {
-                    throw new InvalidArgumentException('Eine Gruppenkennung oder Sollzahl überschreitet den zulässigen Bereich.');
+                    throw new InvalidArgumentException('Group code or limit exceeds the supported range.');
                 }
             }
         }

@@ -604,6 +604,43 @@ class QuotaStoreTest extends TestCase {
         }
     }
 
+    public function testLegacyNullValidityFlagStillAllowsAResolvedSurveySource(): void {
+        $this->seedSources();
+        self::$db->exec('UPDATE survey_studies SET valid=NULL');
+        $catalogue = (new QuotaEditor(self::$db))->sources(1,202,7);
+        self::assertTrue($catalogue['survey_201.age']['supported']);
+        self::assertSame('admitted',$this->store->admitFromSurvey(1,$this->quota,1,202)['status']);
+    }
+
+    public function testTableCaseIsResolvedAccordingToTheDatabaseSetting(): void {
+        $this->seedSources();
+        self::$db->exec('UPDATE survey_studies SET results_table=UPPER(results_table)');
+        $folded = (int) self::$db->query('SELECT @@lower_case_table_names')->fetchColumn() !== 0;
+        $catalogue = (new QuotaEditor(self::$db))->sources(1,202,7);
+        self::assertSame($folded,$catalogue['survey_201.age']['supported']);
+        if ($folded) {
+            self::assertSame('admitted',$this->store->admitFromSurvey(1,$this->quota,1,202)['status']);
+        } else {
+            $this->expectException(UnexpectedValueException::class);
+            $this->store->admitFromSurvey(1,$this->quota,1,202);
+        }
+    }
+
+    public function testCaseVariantsCannotHideSharedPhysicalTableOwnership(): void {
+        $this->seedSources();
+        self::$db->exec('INSERT INTO survey_studies (id,user_id,results_table,valid,unlinked)
+            SELECT 99,user_id,UPPER(results_table),valid,unlinked FROM survey_studies LIMIT 1');
+        $folded = (int) self::$db->query('SELECT @@lower_case_table_names')->fetchColumn() !== 0;
+        $catalogue = (new QuotaEditor(self::$db))->sources(1,202,7);
+        self::assertSame(!$folded,$catalogue['survey_201.age']['supported']);
+        if ($folded) {
+            $this->expectException(UnexpectedValueException::class);
+            $this->store->admitFromSurvey(1,$this->quota,1,202);
+        } else {
+            self::assertSame('admitted',$this->store->admitFromSurvey(1,$this->quota,1,202)['status']);
+        }
+    }
+
     public function testSavedAnswerLoaderRefusesToRunOutsideTransaction(): void {
         $this->expectException(LogicException::class);
         (new QuotaAnswerLoader(self::$db))->load(1, 1, 202, self::tables());
@@ -812,7 +849,7 @@ class QuotaStoreTest extends TestCase {
         $result = $runtime->execute('Complete',1,1,203,101);
         self::assertTrue($result['quota_terminal']);
         self::assertArrayNotHasKey('redirect',$result);
-        self::assertStringContainsString('abgeschlossen',$result['content']);
+        self::assertStringContainsString('complete',$result['content']);
         $this->assertCounts(1);
         self::assertSame($result,$runtime->execute('Complete',1,1,203,101));
         self::assertSame(101,(int) self::$db->query('SELECT current_unit_session_id FROM survey_run_sessions WHERE id=1')->fetchColumn());
@@ -842,7 +879,7 @@ class QuotaStoreTest extends TestCase {
         self::assertTrue($runtime->execute('Quota',1,1,202,130)['move_on']);
         $this->reachComplete();
         try { $runtime->execute('Complete',1,1,203,101); self::fail('Missing identity must not produce a callback.'); }
-        catch (DomainException $error) { self::assertStringContainsString('Teilnehmer-ID',$error->getMessage()); }
+        catch (DomainException $error) { self::assertStringContainsString('identity',$error->getMessage()); }
         $this->assertCounts(1);
         self::assertNull(self::$db->query('SELECT ended FROM survey_run_sessions WHERE id=1')->fetchColumn());
         self::assertNull(self::$db->query('SELECT ended FROM survey_unit_sessions WHERE id=101')->fetchColumn());

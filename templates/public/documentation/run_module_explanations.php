@@ -65,6 +65,54 @@
     </div>
     <div class="panel panel-default">
         <div class="panel-heading">
+            <a class="accordion-toggle" data-toggle="collapse" href="#quota">
+                <i class="fa-fw fa fa-users pull-left fa-3x"></i>
+                Quota<br>
+                <small>check whether a participant's groups still have space</small></a>
+        </div>
+        <div id="quota" class="panel-collapse collapse quota">
+            <div class="panel-body">
+                <p>
+                    Place Quota after a demographic Survey and before the main questionnaire. Select saved variables from the preceding Survey in the Quota editor; no special item-table syntax is needed. Use categorical answers directly, or define inclusive whole-number ranges such as ages 18–29. The original answers remain unchanged.
+                </p>
+                <p>
+                    Variables within one quota table are crossed automatically. Add separate tables for independent targets: for example, one table for age × sex and another for education. A participant must match an available group in every table to continue.
+                </p>
+                <p>
+                    Only participants who reach the <a href="#complete" data-toggle="collapse" data-target="#complete">Complete module</a> count towards the limits. Admission does not reserve a place: participants already admitted may finish after a group fills, so counts can exceed the limit. Test participants have separate counts.
+                </p>
+                <p>
+                    Full groups, missing answers and answers outside the configured categories use the <code>quota_full</code> exit. A technical error instead keeps the participant at the module for a retry. Save the Complete exit settings before activating Quota. Activation fixes the categories and provider settings.
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <a class="accordion-toggle" data-toggle="collapse" href="#complete">
+                <i class="fa-fw fa fa-check-circle pull-left fa-3x"></i>
+                Complete<br>
+                <small>count successful participation and finish the run</small></a>
+        </div>
+        <div id="complete" class="panel-collapse collapse complete">
+            <div class="panel-body">
+                <p>
+                    Place Complete after the main questionnaire and your quality checks. Participants must have passed Quota to complete, and each participation is counted once. Put filters before this module so excluded participants never reach it. An ordinary Stop module does not record quota completion.
+                </p>
+                <p>
+                    Choose either a local completion page without a panel provider, or one provider configuration for the run. With a provider, enter the incoming participant-ID parameter, the provider's placeholder and the three return links for <code>complete</code>, <code>quota_full</code> and <code>screen_out</code>. Individual IDs are received on entry and inserted into the matching return link; you do not enter IDs in advance.
+                </p>
+                <p>
+                    Quota handles the quota-full exit. For other screening exclusions, route participants to a Stop module with its provider exit set to <code>screen_out</code>. Successful participants reach Complete and use the <code>complete</code> return link. Without a provider, these exits show a local end page.
+                </p>
+                <p>
+                    Test participants see provider return links as plain text and are not redirected. Check the full study flow and provider links before field use.
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="panel panel-default">
+        <div class="panel-heading">
             <a class="accordion-toggle" data-toggle="collapse" href="#external">
                 <i class="fa-fw fa fa-external-link-square pull-left fa-3x"></i>
                 External link<br>
