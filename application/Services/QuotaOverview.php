@@ -99,8 +99,6 @@ class QuotaOverview {
                     }
                     $rows[$table][$group][$field]=(int)$value;
                 }
-                if (!is_string($row['reason']??'') || strlen($row['reason']??'')>2000) { throw new InvalidArgumentException('Give a short correction reason.'); }
-                $rows[$table][$group]['reason']=trim($row['reason']??'');
             }
             ksort($rows[$table],SORT_STRING);
         }

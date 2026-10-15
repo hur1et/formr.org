@@ -82,7 +82,7 @@
                     Only participants who reach the <a href="#complete" data-toggle="collapse" data-target="#complete">Complete module</a> count towards the limits. Admission does not reserve a place: participants already admitted may finish after a group fills, so counts can exceed the limit. Test participants have separate counts.
                 </p>
                 <p>
-                    Open <strong>Quotas</strong> in the run menu to see group limits, counts and fulfilment. Use <strong>Refresh</strong> for current figures, or edit the values and choose <strong>Save</strong>. Count corrections require a reason and apply the difference from the displayed count to the latest database count, preserving new completions. Changes are logged. Saved groups and limits can also be viewed and edited before activation.
+                    Open <strong>Quotas</strong> in the run menu to see group limits, counts and fulfillment. Fulfillment cells turn green at 100% and above. Use <strong>Refresh</strong> for current figures, or edit the values and choose <strong>Save</strong>. Count corrections apply the difference from the displayed count to the latest database count, preserving new completions. Your account, the time and the amount changed are logged automatically; no explanation is required. Saved groups and limits can also be viewed and edited before activation.
                 </p>
                 <p>
                     Full groups, missing answers and answers outside the configured categories use the <code>quota_full</code> exit. A technical error instead keeps the participant at the module for a retry. Save the Complete exit settings before activating Quota. Activation fixes the categories and provider settings.

@@ -279,10 +279,6 @@ class QuotaStore {
                         }
                     }
                     $delta=$row['count']-$row['base_count'];
-                    $reason=trim($row['reason']??'');
-                    if (strlen($reason)>2000 || ($delta!==0 && $reason==='')) {
-                        throw new InvalidArgumentException('Give a short reason for each count correction.');
-                    }
                     $newCount=$counts[$table][$group]+$delta;
                     if (!is_int($newCount) || $newCount<0) { throw new DomainException('The correction would make a count negative. Refresh and try again.'); }
                     $key=hash('sha256',$operationKey.'|'.$table.'|'.$group);
@@ -297,7 +293,7 @@ class QuotaStore {
                     if ($delta!==0) {
                         $this->query('INSERT INTO survey_quota_adjustments
                             (quota_id,table_id,group_id,cohort,delta,actor_id,reason,operation_key) VALUES (?,?,?,?,?,?,?,?)',
-                            [$quotaId,$identity['table_id'],$identity['id'],$cohort,$delta,$actorId,$reason,$key]);
+                            [$quotaId,$identity['table_id'],$identity['id'],$cohort,$delta,$actorId,'Quota overview',$key]);
                     }
                 }
             }

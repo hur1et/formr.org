@@ -24,6 +24,9 @@
                                 <a href="<?= admin_run_url($run->name) ?>">Set up quota groups in Edit Run.</a></p>
                         <?php else: ?>
                             <p class="quota-completed">Completed participants: <?= (int)$quota_overview['completed'] ?></p>
+                            <?php if ($quota_overview['quota_id']): ?>
+                                <p class="help-block">Count changes are logged automatically with your account, the time and the amount changed.</p>
+                            <?php endif; ?>
                             <form method="post" action="<?= admin_run_url($run->name,'quotas') ?>">
                                 <input type="hidden" name="cohort" value="<?= h($cohort) ?>">
                                 <input type="hidden" name="quota_id" value="<?= (int)$quota_overview['quota_id'] ?>">
@@ -33,12 +36,12 @@
                                     <h4><?= h($table) ?></h4>
                                     <div class="table-responsive">
                                         <table class="table table-bordered table-striped table-condensed">
-                                            <thead><tr><th>Code</th><th>Quota group</th><th>Limit</th><th>Count</th><th>Fulfilment</th></tr></thead>
+                                            <thead><tr><th>Code</th><th>Quota group</th><th>Limit</th><th>Count</th><th>Fulfillment</th></tr></thead>
                                             <tbody>
                                                 <?php foreach ($groups as $code=>$group):
                                                     $input=$posted['rows'][$table][$code]??[];
                                                     $row=$group;
-                                                    foreach (['limit','count','base_limit','base_count','reason'] as $field) {
+                                                    foreach (['limit','count','base_limit','base_count'] as $field) {
                                                         if (is_array($input) && isset($input[$field]) && is_scalar($input[$field])) { $row[$field]=$input[$field]; }
                                                     }
                                                     $prefix='rows['.$table.']['.$code.']';
@@ -58,12 +61,11 @@
                                                             <?php if ($quota_overview['quota_id']): ?>
                                                                 <label class="sr-only" id="<?= $fieldId ?>-count-label" for="<?= $fieldId ?>-count"><?= h('Count for '.$name) ?></label>
                                                                 <input class="form-control input-sm quota-number" id="<?= $fieldId ?>-count" type="text" inputmode="numeric" pattern="[0-9]+" maxlength="19" required name="<?= h($prefix) ?>[count]" value="<?= h($row['count']) ?>">
-                                                                <input class="form-control input-sm quota-reason" type="text" maxlength="2000" name="<?= h($prefix) ?>[reason]" value="<?= h($row['reason']??'') ?>" placeholder="Correction reason" aria-label="<?= h('Reason for '.$name) ?>">
                                                             <?php else: ?>
                                                                 0<input type="hidden" name="<?= h($prefix) ?>[count]" value="0">
                                                             <?php endif; ?>
                                                         </td>
-                                                        <td><?= h($percentage) ?></td>
+                                                        <td<?= $group['limit']>0 && $group['count']>=$group['limit'] ? ' class="success"' : '' ?>><?= h($percentage) ?></td>
                                                     </tr>
                                                 <?php endforeach; ?>
                                             </tbody>

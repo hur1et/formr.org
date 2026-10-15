@@ -57,5 +57,7 @@ output directory was denied (EPERM), so no local screenshot artifact is claimed.
 The researcher overview is now implemented and browser-checked in the authenticated
 application. It offers all-table Save and Refresh, cohort selection, draft limits and
 audited count corrections that retain concurrent completions. Its separate MariaDB
-lane passes 112 tests / 418 assertions. See [QUOTA_OVERVIEW.md](QUOTA_OVERVIEW.md)
+lane passes 112 tests / 421 assertions. Corrections need no explanation input; actor,
+timestamp and delta are recorded automatically. Fulfillment cells turn green at 100%
+and above. See [QUOTA_OVERVIEW.md](QUOTA_OVERVIEW.md)
 for behavior, migration 063 and acceptance evidence.

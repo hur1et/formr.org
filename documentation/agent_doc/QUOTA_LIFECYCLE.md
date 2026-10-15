@@ -82,7 +82,7 @@ numbers must be coordinated with upstream before submission/deployment.
   253 tests / 617 assertions passed, 11 PHPUnit deprecations, including the overview. This includes the 76
   focused rules/provider/run-unit tests, so those must not be counted a second time.
 - Focused standalone PHP lane: 76 tests / 178 assertions passed.
-- Disposable MariaDB lane: 112 tests / 418 assertions passed. Includes overview saves,
+- Disposable MariaDB lane: 112 tests / 421 assertions passed. Includes overview saves,
   concurrent corrections/completions and rollback, as well as native legacy
   import metadata and Windows table-name/ownership handling as well as activation
   rollback, ownership/order/source failures, saved admissions/completions, all exits,

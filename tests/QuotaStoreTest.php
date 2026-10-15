@@ -655,7 +655,7 @@ class QuotaStoreTest extends TestCase {
             foreach ($groups as $group=>$definition) {
                 $count=$snapshot['counts'][$table][$group];
                 $rows[$table][$group]=['limit'=>$definition['limit'],'base_limit'=>$definition['limit'],
-                    'count'=>$count,'base_count'=>$count,'reason'=>'Review'];
+                    'count'=>$count,'base_count'=>$count];
             }
         }
         return $rows;
@@ -698,16 +698,20 @@ class QuotaStoreTest extends TestCase {
         $snapshot=$this->store->overview(1,$this->quota,'test',7);
         self::assertSame(0,$snapshot['completed']);
         self::assertSame(4,$snapshot['tables']['education']['limits']['uni']);
-        self::assertSame('Review',self::$db->query('SELECT reason FROM survey_quota_adjustments')->fetchColumn());
+        $audit=self::$db->query('SELECT actor_id,delta,reason,created_at FROM survey_quota_adjustments')->fetch(PDO::FETCH_ASSOC);
+        self::assertSame(7,(int)$audit['actor_id']);
+        self::assertSame(2,(int)$audit['delta']);
+        self::assertSame('Quota overview',$audit['reason']);
+        self::assertNotEmpty($audit['created_at']);
     }
 
-    public function testOverviewBatchRollsBackAllTablesOnMissingReason(): void {
+    public function testOverviewBatchRollsBackAllTablesOnNegativeEffectiveCount(): void {
         $rows=$this->overviewRows();
         $rows['age_sex']['adult|female']['limit']=5;
         $rows['education']['uni']['count']=1;
-        $rows['education']['uni']['reason']='';
-        try { $this->saveOverview($rows); self::fail('Missing correction reason accepted.'); }
-        catch (InvalidArgumentException $error) { self::assertStringContainsString('reason',$error->getMessage()); }
+        $rows['education']['uni']['base_count']=2;
+        try { $this->saveOverview($rows); self::fail('Negative effective count accepted.'); }
+        catch (DomainException $error) { self::assertStringContainsString('negative',$error->getMessage()); }
         self::assertSame(1,$this->store->overview(1,$this->quota,'field',7)['tables']['age_sex']['limits']['adult|female']);
         self::assertSame(0,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_limit_changes')->fetchColumn());
         self::assertSame(0,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_edits')->fetchColumn());

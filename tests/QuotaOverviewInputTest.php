@@ -5,8 +5,8 @@ require_once __DIR__.'/../application/Services/QuotaOverview.php';
 
 class QuotaOverviewInputTest extends TestCase {
     public function testPostedIntegersArePreservedWithoutRounding(): void {
-        $rows=QuotaOverview::parseRows(['a'=>['g'=>['limit'=>'12','base_limit'=>'10','count'=>'7','base_count'=>'9','reason'=>'  Exclude two  ']]]);
-        self::assertSame(['limit'=>12,'base_limit'=>10,'count'=>7,'base_count'=>9,'reason'=>'Exclude two'],$rows['a']['g']);
+        $rows=QuotaOverview::parseRows(['a'=>['g'=>['limit'=>'12','base_limit'=>'10','count'=>'7','base_count'=>'9']]]);
+        self::assertSame(['limit'=>12,'base_limit'=>10,'count'=>7,'base_count'=>9],$rows['a']['g']);
     }
 
     #[DataProvider('invalidNumbers')]
