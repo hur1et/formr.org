@@ -29,7 +29,9 @@ Provider configuration, external monitor access and export are later integration
 
 ## Proposed persistence model
 
-Names below are provisional. No migration is installed by this design document.
+Names below describe the target design. The core subset is now implemented by patch 060;
+see QUOTA_STORAGE.md for exact boundaries. Run-unit attachment, lifecycle status, labels
+and definition editing/versioning in this table are not implemented yet.
 
 | Relation | Main fields | Integrity rule |
 |---|---|---|
@@ -86,8 +88,8 @@ across different run sessions.
 
 Do not check group capacity again on completion. Raising or lowering a limit cannot revoke
 an admitted participation. Technical failure leaves the completion retryable.
-The final lock order and transaction ownership must be tested against MariaDB; the existing
-DB wrapper and RunSession lifecycle must be inspected before implementing this contract.
+The core lock order and transaction ownership have been tested against MariaDB. Integration
+with RunSession lifecycle transactions still requires separate verification.
 
 Inspection finding: DB::beginTransaction silently does nothing inside an existing transaction,
 but DB::commit commits that entire transaction. It does not implement nesting or savepoints.
@@ -143,7 +145,9 @@ These must not be silently selected by an implementation.
 
 Isolated feature/quotas checkout created from the official base with no AI working files.
 The first pure rule evaluator is implemented as QuotaRules with standalone PHPUnit tests.
-See QUOTA_RULES.md for its input contract and limitations. It is not connected to the run
-lifecycle yet. No quota migration or persistence layer is implemented.
-A portable PHP 8.2 runtime and PHPUnit 11.5.6 now execute the rule tests locally, outside the
-repository. MariaDB concurrency, lifecycle and provider verification still require integration.
+See QUOTA_RULES.md for its input contract and limitations. On 2026-10-15, QuotaStore and
+additive patch 060 implement persisted definitions, decisions, assignments, completions,
+corrections and limit audits. See QUOTA_STORAGE.md for transaction rules and remaining gaps.
+Local tests: 53 rule tests / 106 assertions and 26 MariaDB tests / 110 assertions, including
+real concurrent writers. This is not connected to run units or deployed. Full schema migration,
+lifecycle, deletion, provider and browser acceptance remain separate integration work.

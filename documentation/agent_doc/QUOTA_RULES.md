@@ -73,7 +73,7 @@ A second table, e.g. education, is evaluated using the same contract. Every tabl
 
 Rejections return no partial assignments or raw response values. Only the first blocking
 table/source is reported, in definition order. Persisted rejections must be reused by the
-future service; this evaluator itself has no participant history.
+QuotaStore service; this evaluator itself has no participant history.
 
 ## Testing
 
@@ -90,7 +90,7 @@ independent snapshots, all-table exclusion, exact codes and gap diagnostics.
 
 ## Remaining integration work
 
-Persist definitions, decisions, cohorts, assignments, completions and correction journal;
-idempotent admission/completion transactions; concurrency on MariaDB; activation and reset;
-load survey metadata/results; UI and input validation; provider/monitor/export integration.
+Persistence and idempotent admission/completion are implemented and tested on MariaDB;
+see QUOTA_STORAGE.md. Remaining: activation and reset; load survey metadata/results;
+run units and lifecycle; UI and input validation; provider/monitor/export integration.
 Do not call evaluate() to recheck capacity at Complete: already-admitted users may finish.
