@@ -17,6 +17,10 @@ This document describes a proposed implementation, not a shipped feature.
 - Test exits display a redirect preview only; no automatic provider request.
 - Separate technical failure from quota-full and screening outcomes.
 - Complete must be locally idempotent and recoverable before any provider redirect.
+- Scope clarification, 2026-10-15: no quota-participation deletion workflow is requested.
+  The proposed choice about retaining/releasing counts on deletion was withdrawn. Do not
+  implement either option or block run-unit integration on that question. Explicit audited
+  count corrections remain in scope.
 
 ## Data flow
 
@@ -107,8 +111,9 @@ started by its caller. Test both standalone invocation and the integrated run li
   Never restore identifying links to unlinked exports as an accidental quota feature.
 - Run exports, individual survey exports and survey-file ZIP exports have separate paths.
 - RunSession testing status can change. Define stable test-cohort semantics before counting.
-- Existing deletion paths can remove run sessions. Decide explicit quota cleanup and correction
-  behavior before adding cascade constraints; no orphaned or silently changed counts.
+- Existing application maintenance paths need compatibility verification before release.
+  This is an internal integration check, not a requested quota deletion feature or permission
+  to add automatic count corrections. Avoid cascading loss of completion evidence.
 
 ## Required acceptance scenarios
 
@@ -138,7 +143,7 @@ started by its caller. Test both standalone invocation and the integrated run li
 ## Pending scope decisions
 
 Activation lifecycle, later testing-flag changes and test reset; completion without
-provider; provider profiles/exit paths; unlinked surveys and export scope; deletion behavior.
+provider; provider profiles/exit paths; unlinked surveys and export scope.
 These must not be silently selected by an implementation.
 
 ## Implementation status
@@ -150,4 +155,4 @@ additive patch 060 implement persisted definitions, decisions, assignments, comp
 corrections and limit audits. See QUOTA_STORAGE.md for transaction rules and remaining gaps.
 Local tests: 53 rule tests / 106 assertions and 26 MariaDB tests / 110 assertions, including
 real concurrent writers. This is not connected to run units or deployed. Full schema migration,
-lifecycle, deletion, provider and browser acceptance remain separate integration work.
+lifecycle, existing-maintenance compatibility, provider and browser acceptance remain separate integration work.

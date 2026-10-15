@@ -86,10 +86,12 @@ These are core tests using minimal parent fixtures, not a full production migrat
   changing raw answers. Never concatenate an untrusted source key into SQL.
 - Attach definitions to a Quota unit; add explicit Complete lifecycle/retry behavior.
 - Implement activation/editing policy and agree test resets/testing-flag changes.
-- Agree deletion/cleanup behavior and integrate every existing deletion path. Internal quota
+- Check compatibility with existing application maintenance before release. Internal quota
   foreign keys are restrictive. References to legacy run/unit sessions and actors have no
-  foreign keys yet: deployed types differ and deletion semantics are unresolved. The service
-  validates ownership, but cannot prevent legacy code from deleting these referenced rows.
+  foreign keys yet: deployed types differ. The service validates ownership, but cannot prevent
+  legacy code from deleting these referenced rows. This remains a technical integration gap.
+  No new quota deletion workflow or automatic count transfer is authorized. The 2026-10-15
+  question proposing those options was withdrawn; it does not block run-unit development.
 - Validate patch against the full upgraded schema and exercise normal application transactions.
 - Add administrator UI, provider handling, field-only monitor, exports and browser acceptance.
 
