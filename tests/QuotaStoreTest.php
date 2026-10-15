@@ -7,6 +7,7 @@ use PHPUnit\Framework\TestCase;
 require_once __DIR__ . '/../application/Services/QuotaRules.php';
 require_once __DIR__ . '/../application/Services/QuotaStore.php';
 require_once __DIR__ . '/../application/Services/QuotaAnswerLoader.php';
+require_once __DIR__ . '/../application/Services/QuotaEditor.php';
 
 /** Creates and drops only a randomly named disposable database, never the configured app DB. */
 #[Group('integration')]
@@ -34,7 +35,7 @@ class QuotaStoreTest extends TestCase {
             CREATE TABLE survey_units (id INT UNSIGNED PRIMARY KEY, type VARCHAR(32) NOT NULL) ENGINE=InnoDB;
             CREATE TABLE survey_unit_sessions (id INT UNSIGNED PRIMARY KEY, run_session_id INT UNSIGNED, unit_id INT UNSIGNED,
                 run_unit_id INT UNSIGNED NULL, ended DATETIME NULL, state VARCHAR(32)) ENGINE=InnoDB;
-            CREATE TABLE survey_run_units (id INT UNSIGNED, run_id INT UNSIGNED, unit_id INT UNSIGNED, position INT, PRIMARY KEY (id, run_id)) ENGINE=InnoDB;
+            CREATE TABLE survey_run_units (id INT UNSIGNED, run_id INT UNSIGNED, unit_id INT UNSIGNED, position INT, description VARCHAR(500), PRIMARY KEY (id, run_id)) ENGINE=InnoDB;
             CREATE TABLE survey_studies (id INT UNSIGNED PRIMARY KEY, user_id INT UNSIGNED, results_table VARCHAR(64), valid INT, unlinked INT) ENGINE=InnoDB;
             CREATE TABLE survey_items (study_id INT UNSIGNED, name VARCHAR(64), type VARCHAR(100), choice_list VARCHAR(255), label TEXT,
                 UNIQUE KEY study_item (study_id, name)) ENGINE=InnoDB;
@@ -42,6 +43,7 @@ class QuotaStoreTest extends TestCase {
             CREATE TABLE quota_demo_results (session_id INT UNSIGNED PRIMARY KEY, study_id INT UNSIGNED, ended DATETIME,
                 age INT, sex VARCHAR(12), education VARCHAR(12)) ENGINE=InnoDB;');
         self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/060_quota_core.sql'));
+        self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/061_quota_drafts.sql'));
     }
 
     public static function tearDownAfterClass(): void {
@@ -54,7 +56,7 @@ class QuotaStoreTest extends TestCase {
     }
 
     protected function setUp(): void {
-        foreach (['survey_quota_limit_changes', 'survey_quota_adjustments', 'survey_quota_completions',
+        foreach (['survey_quota_drafts', 'survey_quota_limit_changes', 'survey_quota_adjustments', 'survey_quota_completions',
             'survey_quota_assignments', 'survey_quota_decisions', 'survey_quota_groups', 'survey_quota_tables',
             'survey_quotas', 'quota_demo_results', 'survey_item_choices', 'survey_items', 'survey_studies',
             'survey_run_units', 'survey_unit_sessions', 'survey_units', 'survey_run_sessions', 'survey_runs'] as $table) {
@@ -439,7 +441,7 @@ class QuotaStoreTest extends TestCase {
 
     private function seedSources(): void {
         self::$db->exec('INSERT INTO survey_units VALUES (20,"Survey"),(30,"Quota");
-            INSERT INTO survey_run_units VALUES (201,1,20,1),(202,1,30,2);
+            INSERT INTO survey_run_units VALUES (201,1,20,1,"Demography"),(202,1,30,2,"Quota");
             INSERT INTO survey_studies VALUES (20,7,"quota_demo_results",1,0);
             INSERT INTO survey_items VALUES (20,"age","number",NULL,"Age in years"),
                 (20,"sex","mc","sex_choices","Different visible label"),
@@ -598,6 +600,89 @@ class QuotaStoreTest extends TestCase {
     public function testSavedAnswerLoaderRefusesToRunOutsideTransaction(): void {
         $this->expectException(LogicException::class);
         (new QuotaAnswerLoader(self::$db))->load(1, 1, 202, self::tables());
+    }
+
+    private function seedEditor(): array {
+        $this->seedSources();
+        self::$db->exec('DELETE FROM survey_quota_groups; DELETE FROM survey_quota_tables; DELETE FROM survey_quotas');
+        $tables = self::tables();
+        foreach ($tables as &$table) {
+            foreach ($table['dimensions'] as &$dim) { $dim['source'] = 'survey_201.' . $dim['item_name']; }
+            unset($dim);
+        }
+        unset($table);
+        return $tables;
+    }
+
+    public function testDraftRoundTripUsesExactSourcesAndCreatesNoCountingDefinition(): void {
+        $tables = $this->seedEditor();
+        $editor = new QuotaEditor(self::$db);
+        $sources = $editor->sources(1,202,7);
+        self::assertSame('age', $sources['survey_201.age']['item_name']);
+        self::assertSame('Age in years', $sources['survey_201.age']['label']);
+        self::assertSame('Demography', $sources['survey_201.age']['survey_label']);
+        self::assertTrue($sources['survey_201.sex']['supported']);
+        self::assertSame([], $editor->load(1,202,7));
+        self::assertSame([], $editor->save(1,202,7,$tables));
+        self::assertSame($tables, $editor->load(1,202,7));
+        $tables['education']['limits']['uni'] = 12;
+        $editor->save(1,202,7,$tables);
+        self::assertSame($tables, $editor->load(1,202,7));
+        self::assertSame(0,(int) self::$db->query('SELECT COUNT(*) FROM survey_quotas')->fetchColumn());
+        self::assertSame(0,(int) self::$db->query('SELECT COUNT(*) FROM survey_quota_decisions')->fetchColumn());
+    }
+
+    #[DataProvider('invalidEditorDefinitions')]
+    public function testInvalidDraftPreservesPreviousSavedVersion(string $case): void {
+        $tables = $this->seedEditor();
+        $editor = new QuotaEditor(self::$db);
+        $editor->save(1,202,7,$tables);
+        $changed = $tables;
+        switch ($case) {
+            case 'source': $changed['age_sex']['dimensions'][0]['source']='another.age'; break;
+            case 'run_unit': $changed['age_sex']['dimensions'][0]['run_unit_id']=999; break;
+            case 'variable': $changed['age_sex']['dimensions'][0]['item_name']='secret'; break;
+            case 'code': $changed['age_sex']['dimensions'][1]['categories']['female']='Female'; break;
+            case 'negative': $changed['education']['limits']['uni']=-1; break;
+            case 'overlap': $changed['age_sex']['dimensions'][0]['categories']['overlap']=['min'=>25,'max'=>35]; break;
+            case 'decimal': $changed['age_sex']['dimensions'][0]['categories']['adult']['min']=18.5; break;
+            case 'unsupported': self::$db->exec('UPDATE survey_items SET type="mc_multiple" WHERE name="sex"'); break;
+        }
+        try {
+            $editor->save(1,202,7,$changed);
+            self::fail('Invalid draft must not replace saved configuration.');
+        } catch (InvalidArgumentException $error) { self::assertNotSame('', $error->getMessage()); }
+        self::assertSame($tables,$editor->load(1,202,7));
+        self::assertFalse(self::$db->inTransaction());
+    }
+
+    public static function invalidEditorDefinitions(): array {
+        return array_map(fn($case) => [$case], ['source','run_unit','variable','code','negative','overlap','decimal','unsupported']);
+    }
+
+    public function testDraftRejectsAnotherOwnerAndAnotherQuotaOccurrence(): void {
+        $tables = $this->seedEditor();
+        $editor = new QuotaEditor(self::$db);
+        try { $editor->save(1,202,8,$tables); self::fail('Wrong owner.'); }
+        catch (DomainException $error) { self::assertSame([], $editor->load(1,202,7)); }
+        $editor->save(1,202,7,$tables);
+        self::$db->exec('INSERT INTO survey_run_units VALUES (203,1,30,3,"Another quota")');
+        $this->expectException(DomainException::class);
+        $editor->save(1,203,7,$tables);
+    }
+
+    public function testExistingCountingDefinitionCannotBeChangedByDraftSave(): void {
+        $this->seedSources();
+        $this->expectException(DomainException::class);
+        (new QuotaEditor(self::$db))->save(1,202,7,self::tables());
+    }
+
+    public function testUnsupportedVariableRemainsVisibleWithWarning(): void {
+        $this->seedSources();
+        self::$db->exec('UPDATE survey_items SET type="text" WHERE name="age"');
+        $source = (new QuotaEditor(self::$db))->sources(1,202,7)['survey_201.age'];
+        self::assertFalse($source['supported']);
+        self::assertNotSame('', $source['warning']);
     }
 
     public function testAdmittedParticipantsCanOverfillAfterLimitReduction(): void {

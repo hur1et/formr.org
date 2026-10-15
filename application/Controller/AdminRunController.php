@@ -749,6 +749,8 @@ class AdminRunController extends AdminController
                 'title' => 'Add Survey',
                 'icon' => 'fa-pencil-square',
             ),
+            'Quota' => array('title' => 'Add Quota (development draft)', 'icon' => 'fa-users'),
+            'Complete' => array('title' => 'Add Complete (development draft)', 'icon' => 'fa-check-circle'),
             'External' => array(
                 'title' => 'Add External Link',
                 'icon' => 'fa-external-link-square',

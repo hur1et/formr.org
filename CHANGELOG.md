@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 ## [Unreleased]
 
 ### Added
+- 2026-10-15: Development Quota/Complete run-editor entries and owner-validated quota drafts. Supports variable selection, integer ranges, category crossing and limits; drafts do not execute participant admission/completion yet. Patch 061, browser fixture, DOM and MariaDB draft tests added.
 - 2026-10-15: Saved demographic answer adapter for the quota core. Resolves exact survey run-unit and variable bindings, validates ownership/metadata and distinguishes unanswered items from broken or ambiguous sources. Additional MariaDB tests; editor and run-unit lifecycle integration remain pending.
 - 2026-10-15: Quota persistence core with atomic admission, unique completion, separate test/field totals and audited, retry-safe count/limit changes. Opt-in MariaDB tests cover concurrent writers and rollback failures. Additive patch 060; run-unit, lifecycle and deletion integration still required before deployment.
 - 2026-10-14: Initial quota rule evaluator with automatic category cross-products, inclusive integer ranges, gap diagnostics and all-table eligibility checks. Invalid definitions or count snapshots raise errors separately from participant rejections. Standalone unit tests added. Not yet connected to run units, persistence or provider redirects.

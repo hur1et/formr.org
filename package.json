@@ -8,6 +8,7 @@
         "Cyril Tata <cyril.tata@gmail.com>"
     ],
     "scripts": {
+        "test:quota-editor": "node --experimental-default-type=module --test tests/quota-editor.test.mjs",
         "build:copy": "node build-scripts/copy.js",
         "build:css": "node build-scripts/css.js",
         "build:js": "node build-scripts/js.js",
@@ -42,6 +43,7 @@
         "expose-loader": "^5.0.1",
         "file-loader": "^6.2.0",
         "fs-extra": "^11.3.0",
+        "linkedom": "0.18.12",
         "mini-css-extract-plugin": "^2.9.4",
         "postcss-cli": "^11.0.0",
         "repomix": "^1.9.2",

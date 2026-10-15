@@ -416,7 +416,13 @@ class AdminAjaxController {
             }
 
             $unit = RunUnitFactory::make($run, $params);
-            $unit->create($params);
+            try {
+                $unit->create($params);
+            } catch (InvalidArgumentException | DomainException $error) {
+                if (!in_array($unit->type, ['Quota', 'Complete'], true)) { throw $error; }
+                $this->response->setStatusCode(400, 'Bad Request');
+                return $this->response->setContent('<div class="alert alert-danger">' . h($error->getMessage()) . '</div>');
+            }
 
             if ($unit->valid) {
                 $content = $unit->displayForRun($this->site->renderAlerts());

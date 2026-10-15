@@ -1,6 +1,7 @@
 /*jshint scripturl:true*/
 /* global hljs,  */
 import hljs from "highlight.js";
+import { initQuotaEditor } from "./quota-editor.js";
 import {
   bootstrap_alert,
   bootstrap_modal,
@@ -19,6 +20,7 @@ import {
   }
   RunUnit.prototype.init = function (content) {
     this.block.htmlPolyfill($($.parseHTML(content))); // .html annoying but necessary, somewhere in here a clone where there should be none, appears
+    this.quotaEditor = initQuotaEditor(this.block[0]);
     this.position = this.block.find(".run_unit_position input.position");
 
     this.position_changed = false;
@@ -374,6 +376,7 @@ import {
 
   RunUnit.prototype.save = function (e) {
     e.preventDefault();
+    if (this.quotaEditor && !this.quotaEditor.sync()) return false;
 
     // Flush ACE editor sessions into their underlying textareas before
     // anything reads .val() on them. validatePushMessage and the

@@ -155,5 +155,8 @@ additive patch 060 implement persisted definitions, decisions, assignments, comp
 corrections and limit audits. See QUOTA_STORAGE.md for transaction rules and remaining gaps.
 QuotaAnswerLoader now resolves persisted demographic responses through checked survey/item
 bindings (QUOTA_ANSWERS.md). Local tests: 53 rule tests / 106 assertions and 58 MariaDB tests /
-227 assertions, including real concurrent writers. This is not connected to run units or deployed. Full schema migration,
+227 assertions, including real concurrent writers. Quota/Complete editor entries and a
+separate draft editor are now added (QUOTA_EDITOR.md); these deliberately hold participants
+until activation/lifecycle wiring is implemented. Current verification: 127 PHP tests /
+382 assertions and 11 DOM tests, plus synthetic browser acceptance. Nothing is deployed. Full schema migration,
 lifecycle, existing-maintenance compatibility, provider and browser acceptance remain separate integration work.
