@@ -1,53 +1,109 @@
 <?php
-// Synthetic, local-only browser fixture. Uses the actual editor template and module.
-// Run with: php -S 127.0.0.1:8096 tests/fixtures/quota/editor_preview.php
+// Local fixture with formr's actual module wrapper and styles. No application database.
+// Run: php -S 127.0.0.1:8096 tests/fixtures/quota/editor_preview.php
 $root = dirname(__DIR__, 3);
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-if ($path === '/quota-editor.js') {
-    header('Content-Type: text/javascript');
-    readfile($root . '/webroot/assets/common/js/quota-editor.js');
-    return;
+$assets = [
+    '/quota-editor.js'=>['webroot/assets/common/js/quota-editor.js','text/javascript'],
+    '/bootstrap.css'=>['node_modules/bootstrap/dist/css/bootstrap.min.css','text/css'],
+    '/adminlte.css'=>['webroot/assets/admin/css/AdminLTE.css','text/css'],
+    '/admin.css'=>['webroot/assets/admin/css/style.css','text/css'],
+    '/roboto-font.css'=>['webroot/assets/common/css/roboto-font.css','text/css'],
+    '/font-awesome.css'=>['node_modules/font-awesome/css/font-awesome.min.css','text/css'],
+    '/fonts/fontawesome-webfont.woff2'=>['node_modules/font-awesome/fonts/fontawesome-webfont.woff2','font/woff2'],
+];
+if (preg_match('~\A/fonts/(KFO[A-Za-z0-9_-]+\.woff2)\z~', $path, $font)) {
+    $assets[$path] = ['webroot/assets/common/fonts/' . $font[1], 'font/woff2'];
 }
-if ($path === '/bootstrap.css') {
-    header('Content-Type: text/css');
-    readfile($root . '/node_modules/bootstrap/dist/css/bootstrap.min.css');
-    return;
+if (isset($assets[$path]) && is_file($root . '/' . $assets[$path][0])) {
+    header('Content-Type: ' . $assets[$path][1]);
+    readfile($root . '/' . $assets[$path][0]); return;
 }
 if ($path !== '/') { http_response_code(404); return; }
 function h($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8'); }
+$module = in_array($_GET['modul'] ?? '', ['abschluss','endseite'], true) ? $_GET['modul'] : 'quotierung';
 $prepend = '';
 $tables = [];
 $active = false;
+$unitId = 203;
+$provider = ['mode'=>''];
+$body = '';
+$providerExit = '';
 $sources = [];
-foreach (['age' => 'Age in years', 'sex' => 'Gender', 'education' => 'Education'] as $name => $label) {
+foreach (['age'=>'Alter in Jahren', 'sex'=>'Geschlecht', 'education'=>'Bildungsabschluss'] as $name=>$label) {
     $source = 'survey_201.' . $name;
-    $sources[$source] = ['source' => $source, 'run_unit_id' => 201, 'item_name' => $name, 'label' => $label,
-        'survey_label' => 'Demography', 'type' => $name === 'age' ? 'integer' : 'category',
-        'choices' => $name === 'sex' ? [['value'=>'1','label'=>'Male'],['value'=>'2','label'=>'Female'],['value'=>'-9','label'=>'No response']]
-            : ($name === 'education' ? [['value'=>'uni','label'=>'University'],['value'=>'other','label'=>'Other']] : []),
-        'supported' => true];
+    $sources[$source] = ['source'=>$source,'run_unit_id'=>201,'item_name'=>$name,'label'=>$label,
+        'survey_label'=>'Demografie','type'=>$name === 'age' ? 'integer' : 'category',
+        'choices'=>$name === 'sex' ? [['value'=>'1','label'=>'Männlich'],['value'=>'2','label'=>'Weiblich'],['value'=>'-9','label'=>'Keine Antwort']]
+            : ($name === 'education' ? [['value'=>'uni','label'=>'Hochschulabschluss'],['value'=>'other','label'=>'Anderer Abschluss']] : []),
+        'supported'=>true];
 }
 $sources['survey_201.notes'] = ['source'=>'survey_201.notes','run_unit_id'=>201,'item_name'=>'notes',
-    'label'=>'Free text','survey_label'=>'Demography','type'=>null,'choices'=>[],'supported'=>false,'warning'=>'Free text is unsupported.'];
+    'label'=>'Freitext','survey_label'=>'Demografie','type'=>null,'choices'=>[],'supported'=>false,
+    'warning'=>'Freitext kann nicht für die Quotierung verwendet werden.'];
+$unit = new class {
+    public $type='Quota', $description='Quotierung', $icon='fa-users', $position=20, $id=30, $run_unit_id=202, $special='';
+    public function displayUnitSessionsCount() { return ''; }
+};
+$template = 'quota';
+if ($module === 'abschluss') {
+    $unit->type='Complete'; $unit->description='Abschluss'; $unit->icon='fa-check-circle';
+    $unit->position=40; $unit->id=40; $unit->run_unit_id=203; $template='complete';
+} elseif ($module === 'endseite') {
+    $unit->type='Endpage'; $unit->description='Ausschluss / Endseite'; $unit->icon='fa-stop';
+    $unit->position=30; $unit->id=50; $unit->run_unit_id=204; $template='endpage';
+}
+ob_start(); include $root . '/templates/admin/run/units/' . $template . '.php'; $dialog = ob_get_clean();
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Quota editor — synthetic browser fixture</title><link rel="stylesheet" href="/bootstrap.css">
-<style>body{padding:24px;max-width:1150px;margin:auto}label{margin:5px}fieldset{margin-top:12px}.quota-groups{overflow:auto}</style></head>
-<body><h1>Quota editor</h1><p>Synthetic fixture. Saving here only updates this browser's test draft.</p>
-<main><?php include $root . '/templates/admin/run/units/quota.php'; ?></main>
-<p id="fixture-status" role="status"></p><details><summary>Saved definition</summary><pre id="fixture-saved"></pre></details>
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>formr – Quotierung: lokale Vorschau</title>
+<link rel="stylesheet" href="/bootstrap.css"><link rel="stylesheet" href="/roboto-font.css">
+<link rel="stylesheet" href="/font-awesome.css"><link rel="stylesheet" href="/adminlte.css"><link rel="stylesheet" href="/admin.css">
+<style>body{padding:20px 12px;max-width:1050px;margin:auto;background:#ecf0f5}.quota-preview-note{margin:10px 0}.quota-preview-technical{overflow-wrap:anywhere}.quota-preview-technical pre{max-height:220px;overflow:auto}main .box-body{padding:15px}main .run_unit_dialog{padding-bottom:10px}</style>
+</head><body>
+<p class="text-muted quota-preview-note">Lokale Vorschau mit Beispieldaten. Speichern betrifft nur diesen Browser, keine Studie.</p>
+<nav class="btn-group" aria-label="Bausteine der Vorschau">
+    <a class="btn btn-default" href="/">Quotierung</a>
+    <a class="btn btn-default" href="/?modul=abschluss">Abschluss</a>
+    <a class="btn btn-default" href="/?modul=endseite">Endseite</a>
+</nav>
+<main class="box box-primary" style="margin-top:15px">
+    <div class="box-header with-border"><h1 class="box-title">Run bearbeiten</h1></div>
+    <div class="box-body"><form class="form-horizontal form-inline edit_run">
+        <?php include $root . '/templates/admin/run/units/unit.php'; ?>
+    </form></div>
+</main>
+<p id="fixture-status" role="status"></p>
+<details class="quota-preview-technical"><summary>Gespeicherte Definition (technisch)</summary><pre id="fixture-saved"></pre></details>
 <script type="module">
 import { initQuotaEditor } from '/quota-editor.js';
+document.querySelector('.position').readOnly=true;
+document.querySelector('.remove_unit_from_run').disabled=true;
 const hidden = document.querySelector('[name=quota_tables]');
-hidden.value = sessionStorage.getItem('quota-editor-fixture') || hidden.value;
+if (hidden) hidden.value = sessionStorage.getItem('quota-editor-fixture') || hidden.value;
 const editor = initQuotaEditor(document.querySelector('main'));
+if (!editor) {
+    const saved=JSON.parse(sessionStorage.getItem('quota-preview-<?= $module ?>') || '{}');
+    for (const [name,value] of Object.entries(saved)) {
+        const field=document.querySelector('form').elements.namedItem(name);
+        if (field && 'value' in field) field.value=value;
+    }
+}
 const activate = document.querySelector('.quota-activate');
-if (activate) { activate.disabled=true; activate.title='Activation requires the full authenticated application.'; }
+if (activate) { activate.disabled=true; activate.title='Aktivierung ist nur in der vollständigen, angemeldeten Anwendung möglich.'; }
+document.querySelector('form').addEventListener('submit', (event)=>event.preventDefault());
+const testButton = document.querySelector('.unit_test');
+if (testButton) testButton.addEventListener('click', (event)=>{event.preventDefault();document.querySelector('#fixture-status').textContent='Ein Teilnahmetest ist nur in der vollständigen Anwendung möglich.';});
 document.querySelector('.unit_save').addEventListener('click', (event) => {
-  event.preventDefault();
-  if (!editor.sync()) return;
-  sessionStorage.setItem('quota-editor-fixture', hidden.value);
-  document.querySelector('#fixture-status').textContent = 'Draft saved in browser fixture.';
-  document.querySelector('#fixture-saved').textContent = hidden.value;
+    event.preventDefault();
+    if (editor) {
+        if (!editor.sync()) return;
+        sessionStorage.setItem('quota-editor-fixture', hidden.value);
+        document.querySelector('#fixture-saved').textContent=hidden.value;
+    } else {
+        const values=Object.fromEntries(new FormData(document.querySelector('form')));
+        sessionStorage.setItem('quota-preview-<?= $module ?>',JSON.stringify(values));
+    }
+    document.querySelector('#fixture-status').textContent='Entwurf in der lokalen Vorschau gespeichert.';
 });
 </script></body></html>

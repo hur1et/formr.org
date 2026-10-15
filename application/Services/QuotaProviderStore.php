@@ -4,7 +4,7 @@
 class QuotaProviderStore {
     public function __construct(private PDO $pdo) {
         if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'mysql' || $pdo->getAttribute(PDO::ATTR_ERRMODE) !== PDO::ERRMODE_EXCEPTION) {
-            throw new InvalidArgumentException('Provider store requires MariaDB PDO with exception error mode.');
+            throw new InvalidArgumentException('Die Provider-Einstellungen benötigen eine MariaDB-Verbindung mit aktivierter Fehlerbehandlung.');
         }
     }
 
@@ -19,7 +19,7 @@ class QuotaProviderStore {
         $this->requireComplete($runId,$unitId,$actorId);
         $active = $this->active($runId);
         if ($active) {
-            if ((int) $active['complete_run_unit_id'] !== $unitId) { throw new DomainException('This is not the configured Complete unit.'); }
+            if ((int) $active['complete_run_unit_id'] !== $unitId) { throw new DomainException('Dies ist nicht der festgelegte Abschlussbaustein.'); }
             return ['active'=>true,'provider'=>$active['provider']->toArray()];
         }
         $json = $this->query('SELECT provider_json FROM survey_quota_exit_drafts WHERE run_id=? AND complete_run_unit_id=?',
@@ -31,12 +31,12 @@ class QuotaProviderStore {
         $config = new QuotaProviderConfig($config);
         $this->transaction(function () use ($runId,$unitId,$actorId,$config) {
             if (!$this->query('SELECT id FROM survey_runs WHERE id=? AND user_id=? FOR UPDATE', [$runId,$actorId])->fetch()) {
-                throw new DomainException('Provider settings require the run owner.');
+                throw new DomainException('Nur die verantwortliche Person kann die Provider-Einstellungen bearbeiten.');
             }
             $this->requireComplete($runId,$unitId,$actorId);
-            if ($this->active($runId)) { throw new DomainException('Activated provider settings cannot be replaced.'); }
+            if ($this->active($runId)) { throw new DomainException('Die aktivierten Provider-Einstellungen können in dieser Entwicklungsversion nicht geändert werden.'); }
             $other = $this->query('SELECT complete_run_unit_id FROM survey_quota_exit_drafts WHERE run_id=?', [$runId])->fetchColumn();
-            if ($other !== false && (int) $other !== $unitId) { throw new DomainException('Use one Complete unit per run.'); }
+            if ($other !== false && (int) $other !== $unitId) { throw new DomainException('Bitte genau einen Abschlussbaustein je Run verwenden.'); }
             $this->query('INSERT INTO survey_quota_exit_drafts (run_id,complete_run_unit_id,provider_json) VALUES (?,?,?)
                 ON DUPLICATE KEY UPDATE provider_json=VALUES(provider_json)',
                 [$runId,$unitId,json_encode($config->toArray(),JSON_THROW_ON_ERROR)]);
@@ -51,16 +51,16 @@ class QuotaProviderStore {
         $identity = $query[$parameter];
         if (!is_string($identity) || strlen($identity)>1024 || preg_match('//u',$identity)!==1
             || preg_match('/[\x00-\x1f\x7f]/',$identity)) {
-            throw new DomainException('Invalid provider identity received.');
+            throw new DomainException('Die empfangene Teilnehmer-ID des Panelanbieters ist ungültig.');
         }
         $this->transaction(function () use ($runId,$sessionId,$active,$identity) {
             $this->query('SELECT id FROM survey_quotas WHERE id=? AND run_id=? FOR UPDATE', [$active['quota_id'],$runId])->fetch();
             if (!$this->query('SELECT id FROM survey_run_sessions WHERE id=? AND run_id=? FOR UPDATE', [$sessionId,$runId])->fetch()) {
-                throw new DomainException('Provider identity requires a participation in this run.');
+                throw new DomainException('Die Teilnehmer-ID muss zu einer Teilnahme in diesem Run gehören.');
             }
             $saved = $this->query('SELECT provider_id FROM survey_quota_provider_ids WHERE run_session_id=?', [$sessionId])->fetchColumn();
             if ($saved !== false) {
-                if (!hash_equals($saved,$identity)) { throw new DomainException('The provider identity cannot change during this participation.'); }
+                if (!hash_equals($saved,$identity)) { throw new DomainException('Die Teilnehmer-ID des Panelanbieters darf sich während dieser Teilnahme nicht ändern.'); }
                 return;
             }
             $this->query('INSERT INTO survey_quota_provider_ids (run_session_id,quota_id,provider_id) VALUES (?,?,?)',
@@ -77,11 +77,11 @@ class QuotaProviderStore {
     private function requireComplete(int $runId, int $unitId, int $actorId): void {
         if (!$this->query('SELECT ru.id FROM survey_run_units ru JOIN survey_runs r ON r.id=ru.run_id
             JOIN survey_units u ON u.id=ru.unit_id WHERE ru.id=? AND ru.run_id=? AND r.user_id=? AND u.type="Complete"',
-            [$unitId,$runId,$actorId])->fetch()) { throw new DomainException('Provider settings require this run owner and Complete unit.'); }
+            [$unitId,$runId,$actorId])->fetch()) { throw new DomainException('Die Provider-Einstellungen müssen zum Abschlussbaustein und zur verantwortlichen Person dieses Runs gehören.'); }
     }
 
     private function transaction(callable $operation) {
-        if ($this->pdo->inTransaction()) { throw new LogicException('Provider store must own its transaction.'); }
+        if ($this->pdo->inTransaction()) { throw new LogicException('Die Provider-Einstellungen können während eines anderen Speichervorgangs nicht gespeichert werden.'); }
         $this->pdo->beginTransaction();
         try { $result=$operation(); $this->pdo->commit(); return $result; }
         catch (Throwable $error) { if ($this->pdo->inTransaction()) { $this->pdo->rollBack(); } throw $error; }

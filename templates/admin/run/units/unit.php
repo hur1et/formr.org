@@ -1,10 +1,10 @@
 <div class="row run_unit_inner <?= strtolower($unit->type) ?>" data-type="<?= $unit->type ?>">
     <div class="col-xs-12">
-        <h4><input type="text" value="<?= $unit->description ?>" placeholder="Description (click to edit)" class="run_unit_description" name="description"></h4>
+        <h4><input type="text" value="<?= h($unit->description) ?>" placeholder="<?= in_array($unit->type, ['Quota','Complete','Endpage'], true) ? 'Beschreibung (zum Bearbeiten anklicken)' : 'Description (click to edit)' ?>" class="run_unit_description" name="description"></h4>
     </div>
     <div class="col-xs-3 run_unit_position">
         <h1><i class="muted fa fa-2x <?= $unit->icon ?>"></i></h1>
-        <?= $unit->displayUnitSessionsCount() ?> <button href="ajax_remove_run_unit_from_run" class="remove_unit_from_run btn btn-xs hastooltip" title="Remove unit <?= $unit->id ?>/<?= $unit->run_unit_id ?> from run" type="button"><i class="fa fa-times"></i></button> <br />
+        <?= $unit->displayUnitSessionsCount() ?> <button href="ajax_remove_run_unit_from_run" class="remove_unit_from_run btn btn-xs hastooltip" title="<?= in_array($unit->type, ['Quota','Complete','Endpage'], true) ? 'Baustein aus dem Run entfernen' : 'Remove unit from run' ?> <?= $unit->id ?>/<?= $unit->run_unit_id ?>" type="button"><i class="fa fa-times"></i></button> <br />
         <input class="position" value="<?= $unit->position ?>" type="number" name="position[<?= $unit->run_unit_id ?>]" step="1" max="32000" min="-32000"> <br />
     </div>
     <div class="col-xs-9 run_unit_dialog">

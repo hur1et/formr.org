@@ -812,7 +812,7 @@ class QuotaStoreTest extends TestCase {
         $result = $runtime->execute('Complete',1,1,203,101);
         self::assertTrue($result['quota_terminal']);
         self::assertArrayNotHasKey('redirect',$result);
-        self::assertStringContainsString('complete',$result['content']);
+        self::assertStringContainsString('abgeschlossen',$result['content']);
         $this->assertCounts(1);
         self::assertSame($result,$runtime->execute('Complete',1,1,203,101));
         self::assertSame(101,(int) self::$db->query('SELECT current_unit_session_id FROM survey_run_sessions WHERE id=1')->fetchColumn());
@@ -842,7 +842,7 @@ class QuotaStoreTest extends TestCase {
         self::assertTrue($runtime->execute('Quota',1,1,202,130)['move_on']);
         $this->reachComplete();
         try { $runtime->execute('Complete',1,1,203,101); self::fail('Missing identity must not produce a callback.'); }
-        catch (DomainException $error) { self::assertStringContainsString('identity',$error->getMessage()); }
+        catch (DomainException $error) { self::assertStringContainsString('Teilnehmer-ID',$error->getMessage()); }
         $this->assertCounts(1);
         self::assertNull(self::$db->query('SELECT ended FROM survey_run_sessions WHERE id=1')->fetchColumn());
         self::assertNull(self::$db->query('SELECT ended FROM survey_unit_sessions WHERE id=101')->fetchColumn());

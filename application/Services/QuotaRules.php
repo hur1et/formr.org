@@ -15,13 +15,13 @@ class QuotaRules {
     /** Validate every table before any participant can be classified. */
     public function __construct(array $tables) {
         if (!$tables) {
-            throw new InvalidArgumentException('At least one quota table is required.');
+            throw new InvalidArgumentException('Bitte mindestens eine Quotentabelle anlegen.');
         }
         foreach ($tables as $tableCode => $table) {
             self::checkCode($tableCode);
             if (!is_array($table) || empty($table['dimensions']) || !is_array($table['dimensions'])
                 || !array_is_list($table['dimensions'])) {
-                throw new InvalidArgumentException('Quota dimensions must be a nonempty list.');
+                throw new InvalidArgumentException('Jede Quotentabelle benötigt mindestens eine Variable.');
             }
             $combinations = [[]];
             $sources = [];
@@ -29,7 +29,7 @@ class QuotaRules {
                 self::validateDimension($dimension);
                 $source = $dimension['source'];
                 if (isset($sources[$source])) {
-                    throw new InvalidArgumentException('A source occurs twice in one quota table.');
+                    throw new InvalidArgumentException('Eine Variable darf je Tabelle nur einmal verwendet werden.');
                 }
                 $sources[$source] = true;
                 if ($dimension['type'] === 'integer') {
@@ -53,18 +53,18 @@ class QuotaRules {
             }
             $limits = array_key_exists('limits', $table) ? $table['limits'] : [];
             if (!is_array($limits)) {
-                throw new InvalidArgumentException('Quota limits must be a map.');
+                throw new InvalidArgumentException('Die Sollzahlen müssen den Quotengruppen zugeordnet sein.');
             }
             foreach ($combinations as $combination) {
                 $code = implode('|', $combination);
                 $limit = array_key_exists($code, $limits) ? $limits[$code] : 0;
                 if (!is_int($limit) || $limit < 0) {
-                    throw new InvalidArgumentException('Quota limits must be nonnegative integers.');
+                    throw new InvalidArgumentException('Sollzahlen müssen ganze Zahlen ab 0 sein.');
                 }
                 $this->groups[$tableCode][$code] = ['categories' => $combination, 'limit' => $limit];
             }
             if (array_diff_key($limits, $this->groups[$tableCode])) {
-                throw new InvalidArgumentException('A quota limit refers to an unknown group.');
+                throw new InvalidArgumentException('Eine Sollzahl verweist auf eine unbekannte Quotengruppe.');
             }
         }
         $this->tables = $tables;
@@ -122,29 +122,29 @@ class QuotaRules {
             || trim($dimension['source']) === '' || !isset($dimension['type'])
             || !in_array($dimension['type'], ['category', 'integer'], true)
             || empty($dimension['categories']) || !is_array($dimension['categories'])) {
-            throw new InvalidArgumentException('A quota dimension requires source, type and categories.');
+            throw new InvalidArgumentException('Für jede Variable werden eine Quelle, ein Typ und Kategorien benötigt.');
         }
         $seen = [];
         foreach ($dimension['categories'] as $code => $category) {
             self::checkCode($code);
             if ($dimension['type'] === 'category') {
                 if ((!is_string($category) && !is_int($category)) || (string) $category === '') {
-                    throw new InvalidArgumentException('A categorical answer code must be a nonempty string or integer.');
+                    throw new InvalidArgumentException('Antwortcodes dürfen nicht leer sein und müssen als Text oder ganze Zahl vorliegen.');
                 }
                 $value = (string) $category;
                 if (in_array($value, $seen, true)) {
-                    throw new InvalidArgumentException('An answer code belongs to more than one category.');
+                    throw new InvalidArgumentException('Ein Antwortcode ist mehreren Kategorien zugeordnet.');
                 }
                 $seen[] = $value;
             } else {
                 if (!is_array($category) || !isset($category['min'], $category['max'])
                     || !is_int($category['min']) || !is_int($category['max'])
                     || $category['min'] > $category['max']) {
-                    throw new InvalidArgumentException('Integer ranges require ordered integer min and max bounds.');
+                    throw new InvalidArgumentException('Zahlenbereiche benötigen ganzzahlige Unter- und Obergrenzen. Die Untergrenze darf nicht größer sein.');
                 }
                 foreach ($seen as $range) {
                     if ($category['min'] <= $range['max'] && $range['min'] <= $category['max']) {
-                        throw new InvalidArgumentException('Quota integer ranges must not overlap.');
+                        throw new InvalidArgumentException('Zahlenbereiche dürfen sich nicht überschneiden.');
                     }
                 }
                 $seen[] = $category;
@@ -207,7 +207,7 @@ class QuotaRules {
     /** Delimiter-free internal codes keep generated cross-product identifiers unambiguous. */
     private static function checkCode($code): void {
         if ((!is_string($code) && !is_int($code)) || !preg_match('/\A[A-Za-z0-9_-]+\z/', (string) $code)) {
-            throw new InvalidArgumentException('Quota codes may contain letters, digits, underscores and hyphens.');
+            throw new InvalidArgumentException('Kennungen dürfen nur Buchstaben, Zahlen, Unterstriche und Bindestriche enthalten.');
         }
     }
 }

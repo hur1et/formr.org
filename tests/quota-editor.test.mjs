@@ -31,9 +31,9 @@ test('two dimensions produce four stable cross-product codes', () => {
 test('inclusive overlapping ranges and decimals are rejected', () => {
   const changed = structuredClone(age);
   changed.categories.g2.min=29;
-  assert.throws(()=>quotaGroups([changed]),/overlap/);
+  assert.throws(()=>quotaGroups([changed]),/überschneiden/);
   changed.categories.g2.min=29.5;
-  assert.throws(()=>quotaGroups([changed]),/whole numbers/);
+  assert.throws(()=>quotaGroups([changed]),/ganze Zahlen/);
 });
 
 test('age by sex plus independent education survive editor serialization', () => {
@@ -54,7 +54,7 @@ test('invalid limits cannot overwrite the last serialized definition', () => {
   field.value='-1';field.dispatchEvent(new window.Event('change'));
   assert.equal(editor.sync(),false);
   assert.equal(hidden.value,previous);
-  assert.match(root.querySelector('.quota-editor-error').textContent,/nonnegative/);
+  assert.match(root.querySelector('.quota-editor-error').textContent,/ganze Zahl zwischen 0/);
 });
 
 test('category toggles keep stable codes and never overwrite another selected category', () => {
@@ -72,7 +72,7 @@ test('category toggles keep stable codes and never overwrite another selected ca
 test('missing or unsupported sources block save', () => {
   const { editor,root }=fixture(tables(),(sources)=>{sources[age.source].supported=false;});
   assert.equal(editor.sync(),false);
-  assert.match(root.querySelector('.quota-editor-error').textContent,/unsupported/);
+  assert.match(root.querySelector('.quota-editor-error').textContent,/nicht unterstützte/);
 });
 
 test('question and answer labels remain text instead of executable markup', () => {
@@ -91,7 +91,7 @@ test('table codes cannot disappear through JavaScript prototype names', () => {
 test('no categories are selected automatically for a new variable', () => {
   const { root,editor }=fixture({});
   root.querySelector('.quota-add-table').click();
-  [...root.querySelectorAll('button')].find((button)=>button.textContent==='Add variable').click();
+  [...root.querySelectorAll('button')].find((button)=>button.textContent==='Variable hinzufügen').click();
   assert.equal(root.querySelectorAll('input[type=checkbox]:checked').length,0);
   assert.equal(editor.sync(),false);
 });
@@ -102,7 +102,7 @@ test('typing survives adding another range before a blur/change event', () => {
   name.value='demography';name.dispatchEvent(new window.Event('input'));
   const from=root.querySelector('fieldset input[type=number]');
   from.value='19';from.dispatchEvent(new window.Event('input'));
-  [...root.querySelectorAll('button')].find((button)=>button.textContent==='Add integer range').click();
+  [...root.querySelectorAll('button')].find((button)=>button.textContent==='Zahlenbereich hinzufügen').click();
   assert.equal(root.querySelector('input[type=text]').value,'demography');
   assert.equal(root.querySelector('fieldset input[type=number]').value,'19');
   assert.equal(editor.sync(),false);

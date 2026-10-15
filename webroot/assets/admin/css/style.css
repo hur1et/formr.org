@@ -1,4 +1,59 @@
 input:focus {outline:none;}
+/* Quota controls use the existing run-unit form and Bootstrap table styles. */
+.quota-editor { width: 100%; }
+.quota-editor .quota-table { margin: 18px 0; padding: 0; min-width: 0; }
+.quota-editor .quota-table-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-size: 14px;
+    font-weight: 700;
+}
+.quota-editor .quota-variable {
+    min-width: 0;
+    margin: 12px 0;
+    padding: 0 0 12px;
+    border-bottom: 1px solid #eee;
+}
+.quota-editor .quota-source-label,
+.quota-editor .quota-field,
+.quota-editor .quota-field-label { display: block; }
+.quota-editor .quota-field { margin: 0; }
+.quota-editor .quota-table > div > .quota-field { max-width: 240px; }
+.quota-editor select.form-control { display: block; width: 100%; max-width: 100%; }
+.quota-editor .quota-field input { width: 100%; }
+.quota-editor .help-block { margin: 5px 0 10px; font-size: 12px; }
+.quota-editor .quota-choices { display: flex; flex-wrap: wrap; gap: 6px 24px; margin-bottom: 8px; }
+.quota-editor .quota-choices .checkbox { margin: 0; }
+.quota-editor .quota-choices input[type=checkbox] { margin-right: 5px; }
+.quota-editor .quota-range { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 8px; }
+.quota-editor .quota-range .quota-field { width: 90px; }
+.quota-editor .quota-remove { color: #777; font-weight: normal; white-space: normal; }
+.quota-editor .quota-remove:hover { color: #d73925; }
+.quota-editor .quota-groups { margin-bottom: 5px; }
+.quota-editor .quota-groups table { margin-bottom: 0; }
+.quota-editor .quota-groups th { vertical-align: middle; }
+.quota-editor .quota-groups td { vertical-align: middle; }
+.quota-editor .quota-groups td:last-child { width: 95px; }
+.quota-editor .quota-groups input { width: 80px; }
+.quota-editor .quota-groups code { color: #555; background: none; padding: 0; white-space: nowrap; }
+.quota-editor .quota-editor-error[hidden] { display: none; }
+.quota-provider label { display: block; }
+.quota-provider .form-control { display: block; width: 100%; max-width: 100%; }
+.quota-provider .help-block { font-size: 12px; }
+.run_unit_inner.endpage select[name=provider_exit] { width: 100%; max-width: 100%; }
+@media (max-width: 600px) {
+    .run_unit_inner.quota .run_unit_position,
+    .run_unit_inner.complete .run_unit_position { width: 100%; text-align: left; }
+    .run_unit_inner.quota .run_unit_position h1,
+    .run_unit_inner.complete .run_unit_position h1 { display: inline-block; font-size: 14px; margin: 8px; }
+    .run_unit_inner.quota .run_unit_position input,
+    .run_unit_inner.complete .run_unit_position input { width: 70px; height: 36px; font-size: 24px; }
+    .run_unit_inner.quota .run_unit_dialog,
+    .run_unit_inner.complete .run_unit_dialog { width: 100%; }
+}
 #login .content-wrapper,
 #login .right-side,
 #login .main-footer {

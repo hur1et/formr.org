@@ -9,17 +9,17 @@ class Complete extends RunUnit {
 
     public function create($options = []) {
         if (!empty($options['special']) || !empty($options['importing']) || !empty($options['add_to_run'])) {
-            throw new InvalidArgumentException('Complete cannot yet be imported or used as a special unit.');
+            throw new InvalidArgumentException('Abschlussbausteine können noch nicht importiert oder als Sonderbausteine verwendet werden.');
         }
         if ($this->id) {
             $statement = $this->db->pdo()->prepare('SELECT ru.id FROM survey_run_units ru
                 JOIN survey_runs r ON r.id=ru.run_id JOIN survey_units u ON u.id=ru.unit_id
                 WHERE ru.id=? AND ru.run_id=? AND ru.unit_id=? AND r.user_id=? AND u.type=?');
             $statement->execute([$this->run_unit_id, $this->run->id, $this->id, $this->run->user_id, 'Complete']);
-            if (!$statement->fetch()) { throw new DomainException('Complete must belong to this run and its owner.'); }
+            if (!$statement->fetch()) { throw new DomainException('Der Abschlussbaustein muss zu diesem Run und seiner verantwortlichen Person gehören.'); }
         }
         if (isset($options['provider_mode'])) {
-            if (!$this->id) { throw new InvalidArgumentException('Create Complete before saving its provider settings.'); }
+            if (!$this->id) { throw new InvalidArgumentException('Bitte zuerst den Abschlussbaustein anlegen, anschließend die Provider-Einstellungen speichern.'); }
             $config = ['mode'=>$options['provider_mode']];
             foreach (['entry_parameter','placeholder','complete','quota_full','screen_out'] as $key) {
                 $config[$key] = $options['provider_'.$key] ?? '';
@@ -32,11 +32,11 @@ class Complete extends RunUnit {
 
     public function displayForRun($prepend = '') {
         $settings = (new QuotaProviderStore($this->db->pdo()))->settings((int) $this->run->id,(int) $this->run_unit_id,(int) $this->run->user_id);
-        return $this->runDialog(Template::get($this->getTemplatePath(), ['prepend' => $prepend] + $settings));
+        return $this->runDialog(Template::get($this->getTemplatePath(), ['prepend' => $prepend, 'unitId' => $this->run_unit_id] + $settings));
     }
 
     public function getExportUnit() {
-        throw new DomainException('Complete import/export is not implemented yet.');
+        throw new DomainException('Import und Export von Abschlussbausteinen sind noch nicht verfügbar.');
     }
 
     public function getUnitSessionOutput(UnitSession $unitSession) {
@@ -44,7 +44,7 @@ class Complete extends RunUnit {
             return $this->quotaRuntime()->execute('Complete',(int) $this->run->id,(int) $unitSession->run_session_id,
                 (int) $unitSession->run_unit_id,(int) $unitSession->id,$unitSession->isExecutedByCron());
         } catch (Throwable $error) {
-            return ['content'=>'<p>The study could not finish preparing your completion. Please retry or contact the study team.</p>',
+            return ['content'=>'<p>Ihr Abschluss konnte noch nicht vollständig verarbeitet werden. Bitte erneut versuchen oder das Studienteam kontaktieren.</p>',
                 'log'=>$this->getLogMessage('quota_error','Complete processing failed (' . get_class($error) . '); retry remains available.')];
         }
     }
