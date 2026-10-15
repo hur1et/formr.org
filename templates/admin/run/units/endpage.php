@@ -1,5 +1,11 @@
 <?php echo $prepend; ?>
 
+<p><label>Provider exit:
+    <select class="form-control" name="provider_exit">
+        <option value="" <?= empty($providerExit) ? 'selected' : '' ?>>Normal stop page</option>
+        <option value="screen_out" <?= ($providerExit ?? '') === 'screen_out' ? 'selected' : '' ?>>Screen out through the active quota provider configuration</option>
+    </select></label></p>
+
 <p>
     <label>Feedback text: <br />
         <textarea data-editor="markdown" style="width:388px;" placeholder="You can use Markdown" name="body" rows="10" cols="60" class="form-control"><?= h($body) ?></textarea>

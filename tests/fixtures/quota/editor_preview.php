@@ -17,6 +17,7 @@ if ($path !== '/') { http_response_code(404); return; }
 function h($value) { return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8'); }
 $prepend = '';
 $tables = [];
+$active = false;
 $sources = [];
 foreach (['age' => 'Age in years', 'sex' => 'Gender', 'education' => 'Education'] as $name => $label) {
     $source = 'survey_201.' . $name;
@@ -40,6 +41,8 @@ import { initQuotaEditor } from '/quota-editor.js';
 const hidden = document.querySelector('[name=quota_tables]');
 hidden.value = sessionStorage.getItem('quota-editor-fixture') || hidden.value;
 const editor = initQuotaEditor(document.querySelector('main'));
+const activate = document.querySelector('.quota-activate');
+if (activate) { activate.disabled=true; activate.title='Activation requires the full authenticated application.'; }
 document.querySelector('.unit_save').addEventListener('click', (event) => {
   event.preventDefault();
   if (!editor.sync()) return;

@@ -1,9 +1,11 @@
 <?php
 
-/** Quota editor entry point. Participant execution stays blocked during development. */
+/** Native quota editor and admission unit, bound to an explicitly activated definition. */
 class Quota extends RunUnit {
     public $type = 'Quota';
     public $icon = 'fa-users';
+
+    protected function quotaRuntime(): QuotaRuntime { return new QuotaRuntime($this->db->pdo()); }
 
     public function create($options = []) {
         if (!empty($options['special']) || !empty($options['importing']) || !empty($options['add_to_run'])) {
@@ -27,6 +29,9 @@ class Quota extends RunUnit {
                 alert(h('Uncovered integer range: ' . $warning['source'] . ' ' . $warning['min'] . '–' . $warning['max']), 'alert-warning');
             }
         }
+        if (!empty($options['quota_activate'])) {
+            (new QuotaStore($this->db->pdo()))->activate((int) $this->run->id,(int) $this->run->user_id);
+        }
         $options['type'] = 'Quota';
         return parent::create($options);
     }
@@ -39,6 +44,7 @@ class Quota extends RunUnit {
         return $this->runDialog(Template::get($this->getTemplatePath(), [
             'prepend' => $prepend, 'tables' => $editor->load($runId, $unitId, $actorId),
             'sources' => $editor->sources($runId, $unitId, $actorId),
+            'active' => (new QuotaProviderStore($this->db->pdo()))->active($runId) !== null,
         ]));
     }
 
@@ -47,6 +53,12 @@ class Quota extends RunUnit {
     }
 
     public function getUnitSessionOutput(UnitSession $unitSession) {
-        return ['content' => '<p>This study is temporarily unavailable. Please try again later.</p>'];
+        try {
+            return $this->quotaRuntime()->execute('Quota',(int) $this->run->id,(int) $unitSession->run_session_id,
+                (int) $unitSession->run_unit_id,(int) $unitSession->id,$unitSession->isExecutedByCron());
+        } catch (Throwable $error) {
+            return ['content'=>'<p>This study is temporarily unavailable. Please retry or contact the study team.</p>',
+                'log'=>$this->getLogMessage('quota_error','Quota processing failed (' . get_class($error) . '); retry remains available.')];
+        }
     }
 }

@@ -365,7 +365,16 @@ class RunSession extends Model {
         $this->debug("Execute");
         
         $result = $this->currentUnitSession->execute();
-        $this->debug($result, true);
+        $this->debug(!empty($result['quota_terminal']) ? ['quota_terminal'=>true] : $result, true);
+
+        // QuotaRuntime already committed run and unit terminal state together. Keep the
+        // position/current unit for retries, including after a lost provider redirect.
+        if (!empty($result['quota_terminal'])) {
+            $this->ended = $result['ended_at'];
+            $this->currentUnitSession->ended = $result['ended_at'];
+            $this->currentUnitSession->state = 'ENDED';
+            return isset($result['redirect']) ? ['redirect'=>$result['redirect']] : ['body'=>$result['content']];
+        }
 
         if (!empty($result['expired'])) {
             $this->debug("EXPIRE");

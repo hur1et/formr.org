@@ -8,7 +8,7 @@ const sex = { source:'survey_201.sex',run_unit_id:201,item_name:'sex',type:'cate
 const education = { source:'survey_201.education',run_unit_id:201,item_name:'education',type:'category',categories:{c1:'uni'} };
 const tables = () => ({ age_sex:{dimensions:[structuredClone(age),structuredClone(sex)],limits:{}}, education:{dimensions:[structuredClone(education)],limits:{c1:5}} });
 
-function fixture(saved = tables(), changeSources = () => {}) {
+function fixture(saved = tables(), changeSources = () => {}, readonly = false) {
   const { document, window } = parseHTML('<main><div class="quota-editor"><input name="quota_tables" type="hidden"><div class="quota-editor-error" hidden></div><div class="quota-editor-tables"></div><button class="quota-add-table">Add table</button></div></main>');
   globalThis.document = document;
   globalThis.Event = window.Event;
@@ -17,6 +17,7 @@ function fixture(saved = tables(), changeSources = () => {}) {
   changeSources(sources);
   const root = document.querySelector('.quota-editor');
   root.dataset.sources = JSON.stringify(sources);
+  root.dataset.readonly = readonly ? '1' : '0';
   const hidden = root.querySelector('[name=quota_tables]');
   hidden.value = JSON.stringify(saved);
   const editor = initQuotaEditor(document.querySelector('main'));
@@ -114,4 +115,11 @@ test('changed group meaning resets its limit, while unchanged groups retain thei
   from.value='19';from.dispatchEvent(new window.Event('input'));
   assert.equal(editor.sync(),true);
   assert.deepEqual(JSON.parse(hidden.value).age_sex.limits,{'g1|c1':0,'g1|c2':0,'g2|c1':14,'g2|c2':15});
+});
+
+test('activated configurations have no editable category or limit controls', () => {
+  const { root,editor,hidden }=fixture(tables(),()=>{},true);
+  assert.equal(editor,null);
+  assert.equal(hidden.disabled,true);
+  assert.equal([...root.querySelectorAll('input,select,button')].every((node)=>node.disabled),true);
 });

@@ -215,5 +215,9 @@ export function initQuotaEditor(block) {
     render(); changed();
   });
   render();
+  if (root.dataset.readonly === '1') {
+    root.querySelectorAll('input,select,button').forEach((node) => { node.disabled = true; });
+    return null;
+  }
   return { sync };
 }

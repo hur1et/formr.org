@@ -3,6 +3,11 @@
 Date: 2026-10-14. Base: e9fdb410aa2ca157e65fa74a4c37c5f51b40860a.
 This document describes a proposed implementation, not a shipped feature.
 
+Implementation update, 2026-10-15: activation, participant execution and one provider
+profile (or explicit no-provider mode) are now connected. See QUOTA_LIFECYCLE.md for
+current behavior and tests. Remaining proposals below are historical design context;
+monitors, response exports and full application acceptance are still pending.
+
 ## Accepted scope
 
 - Native Quota and Complete run units, independent of the AI extension.

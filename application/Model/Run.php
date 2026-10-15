@@ -1170,7 +1170,15 @@ class Run extends Model
                 }
 
                 Session::globalRefresh();
-                $output = $runSession->execute();
+                $entryFailure = null;
+                try {
+                    (new QuotaProviderStore($this->db->pdo()))->capture((int) $this->id,(int) $runSession->id,$_GET);
+                } catch (Throwable $error) {
+                    // Do not expose provider identities or database details in participant output.
+                    formr_log_exception(new RuntimeException('Run execution failed (' . get_class($error) . ').'), 'Quota/runtime');
+                    $entryFailure = ['body'=>'<p>This study is temporarily unavailable. Please try again later or contact the study team.</p>'];
+                }
+                $output = $entryFailure ?? $runSession->execute();
             } else {
                 $runSession->createUnitSession($this->getServiceMessage(), false, false);
                 $output = $runSession->executeTest();

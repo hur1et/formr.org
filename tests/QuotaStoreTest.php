@@ -8,6 +8,9 @@ require_once __DIR__ . '/../application/Services/QuotaRules.php';
 require_once __DIR__ . '/../application/Services/QuotaStore.php';
 require_once __DIR__ . '/../application/Services/QuotaAnswerLoader.php';
 require_once __DIR__ . '/../application/Services/QuotaEditor.php';
+require_once __DIR__ . '/../application/Services/QuotaProviderConfig.php';
+require_once __DIR__ . '/../application/Services/QuotaProviderStore.php';
+require_once __DIR__ . '/../application/Services/QuotaRuntime.php';
 
 /** Creates and drops only a randomly named disposable database, never the configured app DB. */
 #[Group('integration')]
@@ -31,10 +34,13 @@ class QuotaStoreTest extends TestCase {
         self::$db = new PDO($dsn, getenv('QUOTA_TEST_USER') ?: 'root', getenv('QUOTA_TEST_PASSWORD') ?: '',
             [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]);
         self::$db->exec('CREATE TABLE survey_runs (id INT UNSIGNED PRIMARY KEY, user_id INT UNSIGNED NOT NULL) ENGINE=InnoDB;
-            CREATE TABLE survey_run_sessions (id INT UNSIGNED PRIMARY KEY, run_id INT UNSIGNED NOT NULL, testing TINYINT DEFAULT 0) ENGINE=InnoDB;
+            CREATE TABLE survey_run_sessions (id INT UNSIGNED PRIMARY KEY, run_id INT UNSIGNED NOT NULL, testing TINYINT DEFAULT 0,
+                current_unit_session_id INT UNSIGNED NULL, position INT NULL, ended DATETIME NULL) ENGINE=InnoDB;
             CREATE TABLE survey_units (id INT UNSIGNED PRIMARY KEY, type VARCHAR(32) NOT NULL) ENGINE=InnoDB;
             CREATE TABLE survey_unit_sessions (id INT UNSIGNED PRIMARY KEY, run_session_id INT UNSIGNED, unit_id INT UNSIGNED,
-                run_unit_id INT UNSIGNED NULL, ended DATETIME NULL, state VARCHAR(32)) ENGINE=InnoDB;
+                run_unit_id INT UNSIGNED NULL, ended DATETIME NULL, state VARCHAR(32), queued INT DEFAULT 0,
+                result VARCHAR(40), result_log TEXT, state_log TEXT) ENGINE=InnoDB;
+            CREATE TABLE survey_pages (id INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB;
             CREATE TABLE survey_run_units (id INT UNSIGNED, run_id INT UNSIGNED, unit_id INT UNSIGNED, position INT, description VARCHAR(500), PRIMARY KEY (id, run_id)) ENGINE=InnoDB;
             CREATE TABLE survey_studies (id INT UNSIGNED PRIMARY KEY, user_id INT UNSIGNED, results_table VARCHAR(64), valid INT, unlinked INT) ENGINE=InnoDB;
             CREATE TABLE survey_items (study_id INT UNSIGNED, name VARCHAR(64), type VARCHAR(100), choice_list VARCHAR(255), label TEXT,
@@ -44,6 +50,7 @@ class QuotaStoreTest extends TestCase {
                 age INT, sex VARCHAR(12), education VARCHAR(12)) ENGINE=InnoDB;');
         self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/060_quota_core.sql'));
         self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/061_quota_drafts.sql'));
+        self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/062_quota_lifecycle.sql'));
     }
 
     public static function tearDownAfterClass(): void {
@@ -56,14 +63,14 @@ class QuotaStoreTest extends TestCase {
     }
 
     protected function setUp(): void {
-        foreach (['survey_quota_drafts', 'survey_quota_limit_changes', 'survey_quota_adjustments', 'survey_quota_completions',
+        foreach (['survey_quota_provider_ids','survey_quota_lifecycle','survey_quota_exit_drafts','survey_quota_drafts', 'survey_quota_limit_changes', 'survey_quota_adjustments', 'survey_quota_completions',
             'survey_quota_assignments', 'survey_quota_decisions', 'survey_quota_groups', 'survey_quota_tables',
             'survey_quotas', 'quota_demo_results', 'survey_item_choices', 'survey_items', 'survey_studies',
-            'survey_run_units', 'survey_unit_sessions', 'survey_units', 'survey_run_sessions', 'survey_runs'] as $table) {
+            'survey_run_units', 'survey_unit_sessions', 'survey_pages', 'survey_units', 'survey_run_sessions', 'survey_runs'] as $table) {
             self::$db->exec('DELETE FROM ' . $table);
         }
         self::$db->exec('INSERT INTO survey_runs VALUES (1, 7), (2, 8);
-            INSERT INTO survey_run_sessions VALUES (1,1,0), (2,1,0), (3,1,0), (4,1,1), (5,1,1), (6,2,0);
+            INSERT INTO survey_run_sessions (id,run_id,testing) VALUES (1,1,0), (2,1,0), (3,1,0), (4,1,1), (5,1,1), (6,2,0);
             INSERT INTO survey_units VALUES (10,"Complete"), (11,"Survey");
             INSERT INTO survey_unit_sessions (id,run_session_id,unit_id) VALUES (101,1,10), (102,2,10), (103,3,10), (104,4,10), (105,5,10), (106,6,10), (111,1,11);');
         $this->store = new QuotaStore(self::$db);
@@ -448,7 +455,7 @@ class QuotaStoreTest extends TestCase {
                 (20,"education","select_one","education_choices","Education");
             INSERT INTO survey_item_choices VALUES (20,"sex_choices","1","Male"), (20,"sex_choices","2","Female"),
                 (20,"education_choices","uni","University");
-            INSERT INTO survey_unit_sessions VALUES (120,1,20,201,NOW(),"ENDED"), (121,2,20,201,NOW(),"ENDED");
+            INSERT INTO survey_unit_sessions (id,run_session_id,unit_id,run_unit_id,ended,state) VALUES (120,1,20,201,NOW(),"ENDED"), (121,2,20,201,NOW(),"ENDED");
             INSERT INTO quota_demo_results VALUES (120,20,NOW(),29,"2","uni"), (121,20,NOW(),90,"1","uni");');
     }
 
@@ -497,7 +504,7 @@ class QuotaStoreTest extends TestCase {
             'wrong participation' => ['UPDATE survey_unit_sessions SET run_session_id=2 WHERE id=120'],
             'wrong occurrence' => ['UPDATE survey_unit_sessions SET run_unit_id=999 WHERE id=120'],
             'unbackfilled occurrence' => ['UPDATE survey_unit_sessions SET run_unit_id=NULL WHERE id=120'],
-            'duplicate visit' => ['INSERT INTO survey_unit_sessions VALUES (122,1,20,201,NOW(),"ENDED")'],
+            'duplicate visit' => ['INSERT INTO survey_unit_sessions (id,run_session_id,unit_id,run_unit_id,ended,state) VALUES (122,1,20,201,NOW(),"ENDED")'],
             'unfinished visit' => ['UPDATE survey_unit_sessions SET ended=NULL WHERE id=120'],
             'expired visit' => ['UPDATE survey_unit_sessions SET state="EXPIRED" WHERE id=120'],
             'later source' => ['UPDATE survey_run_units SET position=3 WHERE id=201'],
@@ -683,6 +690,230 @@ class QuotaStoreTest extends TestCase {
         $source = (new QuotaEditor(self::$db))->sources(1,202,7)['survey_201.age'];
         self::assertFalse($source['supported']);
         self::assertNotSame('', $source['warning']);
+    }
+
+    private function seedLifecycle(bool $provider = false, bool $activate = true): int {
+        $tables = $this->seedEditor();
+        self::$db->exec('INSERT INTO survey_units VALUES (40,"Complete"),(50,"Page");
+            INSERT INTO survey_run_units VALUES (203,1,40,4,"Complete"),(204,1,50,3,"Screen out");
+            INSERT INTO survey_pages VALUES (50,"screen_out");
+            INSERT INTO survey_unit_sessions (id,run_session_id,unit_id,run_unit_id,state) VALUES (130,1,30,202,"RUNNING"),(140,1,50,204,"RUNNING");
+            UPDATE survey_unit_sessions SET unit_id=40,run_unit_id=203,state="RUNNING" WHERE id=101;
+            UPDATE survey_run_sessions SET current_unit_session_id=130,position=2 WHERE id=1');
+        (new QuotaEditor(self::$db))->save(1,202,7,$tables);
+        $config = $provider ? ['mode'=>'provider','entry_parameter'=>'panel','placeholder'=>'%PANEL%',
+            'complete'=>'https://provider.example/complete?p=123&m=%PANEL%',
+            'quota_full'=>'https://provider.example/quotasfull?p=456&m=%PANEL%',
+            'screen_out'=>'https://provider.example/screenout?p=789&m=%PANEL%'] : ['mode'=>'none'];
+        (new QuotaProviderStore(self::$db))->save(1,203,7,$config);
+        $this->quota = $activate ? $this->store->activate(1,7) : 0;
+        return $this->quota;
+    }
+
+    private function reachComplete(): void {
+        self::$db->exec('UPDATE survey_unit_sessions SET ended=NOW(),state="ENDED" WHERE id=130;
+            UPDATE survey_run_sessions SET current_unit_session_id=101,position=4 WHERE id=1');
+    }
+
+    public function testActivationPinsBothDraftsAndRetriesWithoutDuplicatingDefinitions(): void {
+        $quota = $this->seedLifecycle();
+        self::assertSame($quota,$this->store->activate(1,7));
+        self::assertSame(1,(int) self::$db->query('SELECT COUNT(*) FROM survey_quotas')->fetchColumn());
+        self::assertSame(202,(int) self::$db->query('SELECT quota_run_unit_id FROM survey_quota_lifecycle')->fetchColumn());
+        $this->expectException(DomainException::class);
+        (new QuotaProviderStore(self::$db))->save(1,203,7,['mode'=>'none']);
+    }
+
+    public function testActivationNeedsCompleteSettingsAndRollsBackAllWritesOnFailure(): void {
+        $this->seedLifecycle(false,false);
+        self::$db->exec('CREATE TRIGGER fail_lifecycle BEFORE INSERT ON survey_quota_lifecycle
+            FOR EACH ROW SIGNAL SQLSTATE "45000" SET MESSAGE_TEXT="Injected activation failure"');
+        try {
+            try { $this->store->activate(1,7); self::fail('Expected failure.'); }
+            catch (PDOException $error) { self::assertSame(0,(int) self::$db->query('SELECT COUNT(*) FROM survey_quotas')->fetchColumn()); }
+            self::assertSame(0,(int) self::$db->query('SELECT COUNT(*) FROM survey_quota_groups')->fetchColumn());
+            self::assertSame(1,(int) self::$db->query('SELECT COUNT(*) FROM survey_quota_drafts')->fetchColumn());
+        } finally { self::$db->exec('DROP TRIGGER fail_lifecycle'); }
+        self::$db->exec('DELETE FROM survey_quota_exit_drafts');
+        $this->expectException(DomainException::class);
+        $this->store->activate(1,7);
+    }
+
+    public static function invalidActivationCases(): array {
+        return array_map(fn($case) => [$case], ['owner','order','duplicate_position','second_quota','second_complete',
+            'ambiguous_results','result_view']);
+    }
+
+    #[DataProvider('invalidActivationCases')]
+    public function testActivationRejectsInvalidRunOrSourceWithoutCreatingALedger(string $case): void {
+        $this->seedLifecycle(false,false);
+        $actor = 7;
+        switch ($case) {
+            case 'owner': $actor=8; break;
+            case 'order': self::$db->exec('UPDATE survey_run_units SET position=0 WHERE id=203'); break;
+            case 'duplicate_position': self::$db->exec('UPDATE survey_run_units SET position=2 WHERE id=204'); break;
+            case 'second_quota': self::$db->exec('INSERT INTO survey_run_units VALUES (205,1,30,5,"Extra quota")'); break;
+            case 'second_complete': self::$db->exec('INSERT INTO survey_run_units VALUES (205,1,40,5,"Extra complete")'); break;
+            case 'ambiguous_results': self::$db->exec('INSERT INTO survey_studies SELECT 99,user_id,results_table,valid,unlinked FROM survey_studies LIMIT 1'); break;
+            case 'result_view':
+                self::$db->exec('CREATE VIEW quota_demo_view AS SELECT * FROM quota_demo_results');
+                self::$db->exec('UPDATE survey_studies SET results_table="quota_demo_view"');
+                break;
+        }
+        try {
+            try { $this->store->activate(1,$actor); self::fail('Invalid activation must fail.'); }
+            catch (DomainException|InvalidArgumentException $error) { self::assertNotSame('', $error->getMessage()); }
+            self::assertSame(0,(int) self::$db->query('SELECT COUNT(*) FROM survey_quotas')->fetchColumn());
+            self::assertSame(0,(int) self::$db->query('SELECT COUNT(*) FROM survey_quota_lifecycle')->fetchColumn());
+            self::assertFalse(self::$db->inTransaction());
+        } finally {
+            if ($case === 'result_view') { self::$db->exec('DROP VIEW quota_demo_view'); }
+        }
+    }
+
+    public static function invalidCompletionCases(): array {
+        return array_map(fn($case) => [$case], ['not_admitted','wrong_current','expired','ended_without_completion']);
+    }
+
+    #[DataProvider('invalidCompletionCases')]
+    public function testInvalidCompletionCannotCreateACount(string $case): void {
+        $this->seedLifecycle();
+        $runtime = new QuotaRuntime(self::$db);
+        if ($case !== 'not_admitted') { $runtime->execute('Quota',1,1,202,130); }
+        $this->reachComplete();
+        switch ($case) {
+            case 'wrong_current': self::$db->exec('UPDATE survey_run_sessions SET current_unit_session_id=140 WHERE id=1'); break;
+            case 'expired': self::$db->exec('UPDATE survey_unit_sessions SET state="EXPIRED" WHERE id=101'); break;
+            case 'ended_without_completion': self::$db->exec('UPDATE survey_run_sessions SET ended=NOW() WHERE id=1'); break;
+        }
+        try { $runtime->execute('Complete',1,1,203,101); self::fail('Invalid completion must fail.'); }
+        catch (DomainException $error) { self::assertNotSame('', $error->getMessage()); }
+        $this->assertCounts(0);
+        self::assertSame(0,(int) self::$db->query('SELECT COUNT(*) FROM survey_quota_completions')->fetchColumn());
+    }
+
+    public function testAnOrdinaryPageCannotSendAScreenOutCallback(): void {
+        $this->seedLifecycle(true);
+        (new QuotaProviderStore(self::$db))->capture(1,1,['panel'=>'person']);
+        self::$db->exec('UPDATE survey_pages SET provider_exit="" WHERE id=50;
+            UPDATE survey_run_sessions SET current_unit_session_id=140,position=3 WHERE id=1');
+        try { (new QuotaRuntime(self::$db))->execute('screen_out',1,1,204,140); self::fail('Only explicitly configured Pages can screen out.'); }
+        catch (DomainException $error) { self::assertStringContainsString('configured Page',$error->getMessage()); }
+        self::assertNull(self::$db->query('SELECT ended FROM survey_run_sessions WHERE id=1')->fetchColumn());
+        $this->assertCounts(0);
+    }
+
+    public function testRuntimeAdmitsThenCompletesWithoutProviderAndKeepsRetryPosition(): void {
+        $this->seedLifecycle();
+        $runtime = new QuotaRuntime(self::$db);
+        self::assertTrue($runtime->execute('Quota',1,1,202,130)['move_on']);
+        $this->assertCounts(0);
+        $this->reachComplete();
+        $result = $runtime->execute('Complete',1,1,203,101);
+        self::assertTrue($result['quota_terminal']);
+        self::assertArrayNotHasKey('redirect',$result);
+        self::assertStringContainsString('complete',$result['content']);
+        $this->assertCounts(1);
+        self::assertSame($result,$runtime->execute('Complete',1,1,203,101));
+        self::assertSame(101,(int) self::$db->query('SELECT current_unit_session_id FROM survey_run_sessions WHERE id=1')->fetchColumn());
+        self::assertSame(4,(int) self::$db->query('SELECT position FROM survey_run_sessions WHERE id=1')->fetchColumn());
+    }
+
+    public function testProviderIdCapturedAtEntryReturnsOnCompleteWithoutDoubleCounting(): void {
+        $this->seedLifecycle(true);
+        $providers = new QuotaProviderStore(self::$db);
+        $providers->capture(1,1,['panel'=>'ä/a&b=1+%2F']);
+        $providers->capture(1,1,['panel'=>'ä/a&b=1+%2F']);
+        $runtime = new QuotaRuntime(self::$db);
+        self::assertTrue($runtime->execute('Quota',1,1,202,130)['move_on']);
+        $this->reachComplete();
+        $result = $runtime->execute('Complete',1,1,203,101);
+        self::assertSame('https://provider.example/complete?p=123&m=' . rawurlencode('ä/a&b=1+%2F'),$result['redirect']);
+        self::assertSame($result,$runtime->execute('Complete',1,1,203,101));
+        $this->assertCounts(1);
+        self::assertSame(1,(int) self::$db->query('SELECT COUNT(*) FROM survey_quota_provider_ids')->fetchColumn());
+    }
+
+    public function testMissingProviderIdentityAllowsAdmissionButHoldsCompletionForRetry(): void {
+        $this->seedLifecycle(true);
+        $providers = new QuotaProviderStore(self::$db);
+        $providers->capture(1,1,[]);
+        $runtime = new QuotaRuntime(self::$db);
+        self::assertTrue($runtime->execute('Quota',1,1,202,130)['move_on']);
+        $this->reachComplete();
+        try { $runtime->execute('Complete',1,1,203,101); self::fail('Missing identity must not produce a callback.'); }
+        catch (DomainException $error) { self::assertStringContainsString('identity',$error->getMessage()); }
+        $this->assertCounts(1);
+        self::assertNull(self::$db->query('SELECT ended FROM survey_run_sessions WHERE id=1')->fetchColumn());
+        self::assertNull(self::$db->query('SELECT ended FROM survey_unit_sessions WHERE id=101')->fetchColumn());
+        $providers->capture(1,1,['panel'=>'supplied_later']);
+        self::assertStringContainsString('m=supplied_later',$runtime->execute('Complete',1,1,203,101)['redirect']);
+        $this->assertCounts(1);
+    }
+
+    public function testQuotaFullUsesItsOwnExitAndNeverCountsAnAdmission(): void {
+        $this->seedLifecycle(true);
+        (new QuotaProviderStore(self::$db))->capture(1,1,['panel'=>'one']);
+        $this->store->setLimit(1,$this->quota,'education','uni',0,7,'Close group','close');
+        $runtime = new QuotaRuntime(self::$db);
+        $result = $runtime->execute('Quota',1,1,202,130);
+        self::assertSame('https://provider.example/quotasfull?p=456&m=one',$result['redirect']);
+        self::assertSame($result,$runtime->execute('Quota',1,1,202,130));
+        $this->assertCounts(0);
+        self::assertSame('rejected',self::$db->query('SELECT outcome FROM survey_quota_decisions')->fetchColumn());
+        self::assertSame(130,(int) self::$db->query('SELECT current_unit_session_id FROM survey_run_sessions WHERE id=1')->fetchColumn());
+    }
+
+    public function testScreenOutPageReturnsIdentityWithoutCreatingACompletion(): void {
+        $this->seedLifecycle(true);
+        (new QuotaProviderStore(self::$db))->capture(1,1,['panel'=>'two']);
+        self::$db->exec('UPDATE survey_run_sessions SET current_unit_session_id=140,position=3 WHERE id=1');
+        $result = (new QuotaRuntime(self::$db))->execute('screen_out',1,1,204,140,false,'<p>Screened out.</p>');
+        self::assertSame('https://provider.example/screenout?p=789&m=two',$result['redirect']);
+        self::assertSame(0,(int) self::$db->query('SELECT COUNT(*) FROM survey_quota_completions')->fetchColumn());
+        self::assertSame(0,(int) self::$db->query('SELECT COUNT(*) FROM survey_quota_decisions')->fetchColumn());
+    }
+
+    public function testTestCompletionOnlyShowsPlainTextPreviewAndNeverRedirects(): void {
+        $this->seedLifecycle(true);
+        self::$db->exec('UPDATE survey_run_sessions SET testing=1 WHERE id=1');
+        (new QuotaProviderStore(self::$db))->capture(1,1,['panel'=>'test-user']);
+        $runtime = new QuotaRuntime(self::$db);
+        self::assertTrue($runtime->execute('Quota',1,1,202,130)['move_on']);
+        $this->reachComplete();
+        $result = $runtime->execute('Complete',1,1,203,101);
+        self::assertArrayNotHasKey('redirect',$result);
+        self::assertStringContainsString('<pre>https://provider.example/complete?',$result['content']);
+        self::assertStringNotContainsString('<a',$result['content']);
+        $this->assertCounts(0,'field');
+        $this->assertCounts(1,'test');
+    }
+
+    public function testTerminalWriteFailureLeavesRetryableStateAndOneSavedCompletion(): void {
+        $this->seedLifecycle();
+        $runtime = new QuotaRuntime(self::$db);
+        $runtime->execute('Quota',1,1,202,130);
+        $this->reachComplete();
+        self::$db->exec('CREATE TRIGGER fail_terminal BEFORE UPDATE ON survey_run_sessions
+            FOR EACH ROW SIGNAL SQLSTATE "45000" SET MESSAGE_TEXT="Injected terminal failure"');
+        try {
+            try { $runtime->execute('Complete',1,1,203,101); self::fail('Expected terminal failure.'); }
+            catch (PDOException $error) { $this->assertCounts(1); }
+            self::assertNull(self::$db->query('SELECT ended FROM survey_unit_sessions WHERE id=101')->fetchColumn());
+            self::assertNull(self::$db->query('SELECT ended FROM survey_run_sessions WHERE id=1')->fetchColumn());
+        } finally { self::$db->exec('DROP TRIGGER fail_terminal'); }
+        self::assertTrue($runtime->execute('Complete',1,1,203,101)['quota_terminal']);
+        $this->assertCounts(1);
+    }
+
+    public function testProviderIdentityCannotBeReplacedAndCronCannotBook(): void {
+        $this->seedLifecycle(true);
+        $providers = new QuotaProviderStore(self::$db);
+        $providers->capture(1,1,['panel'=>'first']);
+        try { $providers->capture(1,1,['panel'=>'second']); self::fail('Identity must stay fixed.'); }
+        catch (DomainException $error) { self::assertSame('first',$providers->identity($this->quota,1)); }
+        self::assertSame(['wait_user'=>true],(new QuotaRuntime(self::$db))->execute('Complete',1,1,203,101,true));
+        $this->assertCounts(0);
     }
 
     public function testAdmittedParticipantsCanOverfillAfterLimitReduction(): void {

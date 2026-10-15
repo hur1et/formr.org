@@ -1,6 +1,9 @@
 # Quota and Complete editor drafts
 
-2026-10-15. This milestone adds editor entry points, not field activation.
+Historical editor-draft milestone, 2026-10-15. Activation and participant execution
+have since been connected; see [QUOTA_LIFECYCLE.md](QUOTA_LIFECYCLE.md) for the current
+behavior, test evidence and remaining release requirements. The draft-only descriptions
+below document the earlier milestone, not the current execution path.
 
 ## Scope
 

@@ -1,0 +1,104 @@
+# Quota activation, participant execution and provider exits
+
+Development milestone, 2026-10-15. Not a field release.
+
+## Activation
+
+Save the Quota draft and the Complete exit settings, then use Save and activate in
+Quota. Complete requires an explicit choice: one provider profile per run, or no
+provider. Activation is an owner-only transaction locking the run. It revalidates
+saved survey bindings and requires exactly one Quota followed by one Complete,
+with unique run positions. Result columns must belong to an unambiguous base table;
+views and shared result-table metadata cannot be activated.
+
+The transaction creates the counting definition and pins both run-unit identities
+and the provider settings together. A failed write rolls everything back, preserving
+the drafts. Repeating the activation service returns the existing identity. An old
+editor submission after activation can report that the definition is already fixed;
+reload the editor to see the active state. It cannot create a second definition.
+
+Active category controls are read-only. Existing store methods still support audited
+limit/count changes, but their researcher-facing controls are a later milestone.
+Provider settings are also held fixed in this development version. Safe field editing
+and its effect on existing participations need an explicit product decision before
+that editing is enabled; this guard is not a completed configuration-versioning feature.
+
+## Participant lifecycle
+
+QuotaRuntime validates the actual current unit session, run, run-unit identity, type,
+test status and Quota/Complete order. A saved admission advances to the next unit.
+Every table must admit. A saved rejection ends at Quota with quota_full. Missing or
+unmatched answers retain their distinct internal reasons in the quota ledger.
+Technical failures hold the current position and do not become quota_full/admission.
+
+Only the pinned Complete records completion, and only after saved admission. Stored
+group assignments are reused. Completion does not recheck capacity, so previously
+admitted participants can overfill a group. The completion evidence is unique.
+An already-ended participation cannot create its first completion.
+
+Booking happens before resolving the return link. With a missing provider identity,
+the completion remains booked once, while the unit/run remain unfinished and retryable.
+Supplying the identity on a later request allows the same completion to finish without
+another count. A technical failure in terminal writes similarly permits a retry.
+
+The run and current unit end in one transaction. Their current position remains intact.
+RunSession handles the explicit quota_terminal result before its ordinary redirect
+branch, which would advance a non-Survey unit. Reloading an ended participation can
+therefore retry the same exit. Local booking is once-only; the provider's processing
+of repeated browser redirects cannot be guaranteed once-only without its own protocol.
+
+An existing Page can explicitly select the screen_out exit. It must be before Complete
+and have provider_exit=screen_out in storage. Ordinary Pages keep existing behavior.
+Screen-out records no completion. No new participant deletion workflow is introduced.
+
+## Provider identity and URLs
+
+QuotaProviderConfig validates an explicit incoming query parameter, exact placeholder
+and three complete HTTP(S) return URL templates. The placeholder must occur in query
+values, not in the host, path, fragment or parameter names. No provider format is
+inferred. Fixed URL parts, including study identifiers, are preserved verbatim.
+
+Run captures the supplied identity before executing the participant's survey. Missing
+identity does not block entry. A supplied value is stored separately from the formr
+session code and cannot change during that participation. Invalid/changed values
+produce a retryable technical hold, with no fabricated replacement identity.
+PHP has decoded the query value; rawurlencode encodes it once when replacing the
+placeholder. A literal percent sequence remains literal after the return link is decoded.
+
+Without a provider, terminal exits display a local end page. With a provider, field
+participations return a browser redirect. Test participations only show the resolved
+URL as escaped plain text, without a clickable link or real callback. Test completions
+affect only the test cohort. Cron execution waits for the participant and cannot book.
+Logs and debug output added here omit provider identities and complete return URLs.
+
+Patch 062 adds exit drafts, pinned lifecycle settings and captured identities, plus the
+Page exit selector. Apply patches 060–062 before using this code, including on runs
+without quotas: Run's entry hook queries the lifecycle table. These development patch
+numbers must be coordinated with upstream before submission/deployment.
+
+## Verification and remaining release work
+
+- Standard SQLite unit lane: user-run outside the Windows agent sandbox,
+  238 tests / 588 assertions passed, 11 PHPUnit deprecations. This includes the 76
+  focused rules/provider/run-unit tests, so those must not be counted a second time.
+- Focused standalone PHP lane: 76 tests / 178 assertions passed.
+- Disposable MariaDB lane: 92 tests / 360 assertions passed. Includes activation
+  rollback, ownership/order/source failures, saved admissions/completions, all exits,
+  missing identity recovery, injected terminal write failures and concurrent writers.
+- DOM editor lane: 12 tests passed, including read-only activated controls.
+- PHP syntax check: all 17 changed/new PHP files passed.
+- Production Webpack build passed, with three existing bundle-size warnings and an
+  older Browserslist-data notice. No dependency upgrades were made for these notices.
+
+The MariaDB fixtures use minimal parent-table schemas and synthetic data. They do not
+prove migration compatibility with a full upgraded application database. The browser
+fixture exercises the real editor template/JS, but has no authenticated backend and
+its activation button is deliberately disabled. Earlier browser acceptance concerns
+draft editing only, not this full participant lifecycle or provider settings panel.
+
+Still required: researcher monitor and audited correction/limit controls; revocable
+read-only provider monitor; response export columns; portable run import/export;
+full-schema migration and authenticated browser runs; provider-approved test links;
+pilot/retry/failure checks and a reviewed release/rollback procedure. Test reset/status
+changes and provider changes after activation need decisions before exposing them.
+The production VM and AI integration have not been changed.

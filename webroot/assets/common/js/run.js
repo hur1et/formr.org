@@ -88,6 +88,7 @@ import {
 
     this.unsavedChanges = false;
     this.save_button = this.block.find("a.unit_save");
+    this.block.find('.quota-activate').on('click', (event) => this.save(event, true));
 
     this.block.find("button.from_days").on("click", function (e) {
       e.preventDefault();
@@ -374,7 +375,7 @@ import {
     return isValid;
   }
 
-  RunUnit.prototype.save = function (e) {
+  RunUnit.prototype.save = function (e, activateQuota = false) {
     e.preventDefault();
     if (this.quotaEditor && !this.quotaEditor.sync()) return false;
 
@@ -402,7 +403,7 @@ import {
     $.ajax({
       url: this.run.url + "/" + this.save_button.attr("href"),
       dataType: "html",
-      data: this.save_inputs.serialize(),
+      data: this.save_inputs.serialize() + (activateQuota ? '&quota_activate=1' : ''),
       method: "POST",
     })
       .done(

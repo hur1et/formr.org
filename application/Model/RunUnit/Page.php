@@ -5,18 +5,19 @@ class Page extends RunUnit {
     public $title;
     public $type = 'Endpage';
     public $icon = "fa-stop";
+    public $provider_exit = '';
 
     /**
      * An array of unit's exportable attributes
      * @var array
      */
-    public $export_attribs = array('type', 'description', 'position', 'special', 'body', 'title');
+    public $export_attribs = array('type', 'description', 'position', 'special', 'body', 'title', 'provider_exit');
 
     public function __construct(Run $run, array $props = []) {
         parent::__construct($run, $props);
 
         if ($this->id) {
-            $vars = $this->db->findRow('survey_pages', array('id' => $this->id), 'title, body, body_parsed');
+            $vars = $this->db->findRow('survey_pages', array('id' => $this->id), 'title, body, body_parsed, provider_exit');
             if ($vars) {
                 $vars['valid'] = true;
                 $this->assignProperties($vars);
@@ -25,6 +26,9 @@ class Page extends RunUnit {
     }
 
     public function create($options = []) {
+        if (!in_array($options['provider_exit'] ?? $this->provider_exit, ['', 'screen_out'], true)) {
+            throw new InvalidArgumentException('Unknown Page provider exit.');
+        }
         parent::create($options);
 
         $parsedown = new ParsedownExtra();
@@ -38,6 +42,7 @@ class Page extends RunUnit {
             'body_parsed' => $this->body_parsed,
             'title' => $this->title,
             'end' => 0,
+            'provider_exit' => $this->provider_exit,
         ));
         $this->valid = true;
 
@@ -48,6 +53,7 @@ class Page extends RunUnit {
         $dialog = Template::get($this->getTemplatePath(), array(
             'prepend' => $prepend,
             'body' => $this->body,
+            'providerExit' => $this->provider_exit,
         ));
 
         return $this->runDialog($dialog);
@@ -137,6 +143,16 @@ class Page extends RunUnit {
         }
         
         $output['content'] = do_run_shortcodes($this->body_parsed, $unitSession->runSession->getRun()->name, $unitSession->runSession->session);
+        if ($this->provider_exit === 'screen_out') {
+            try {
+                return (new QuotaRuntime($this->db->pdo()))->execute('screen_out',(int) $this->run->id,
+                    (int) $unitSession->run_session_id,(int) $unitSession->run_unit_id,(int) $unitSession->id,
+                    false,$output['content']);
+            } catch (Throwable $error) {
+                return ['content'=>'<p>The return link could not be prepared. Please retry or contact the study team.</p>',
+                    'log'=>$this->getLogMessage('quota_error','Screen-out failed (' . get_class($error) . '); retry remains available.')];
+            }
+        }
         $output['end_session'] = true;
         $output['end_run_session'] = true;
         $output['log'] = $this->getLogMessage('ended');
