@@ -43,12 +43,13 @@ Verification after this refinement:
 - Responsive checks requested 375, 768 and 1440 pixels; observed content widths were
   360, 753 and 1440, with no document-level horizontal overflow. Viewport reset afterwards.
 
-The user's 238-test standard-suite pass predates this interface refinement; it must
-not be represented as a fresh full-suite run after these edits. The agent sandbox
-still prevents the original autoloader from reading its file-access status correctly.
+The user's latest standard-suite pass after the interface and resume fixes is 240
+tests / 604 assertions, with 11 existing PHPUnit deprecations. The agent sandbox
+has separate file-read probe limitations; no application loader/Crypto changes were made.
 The full local schema with migrations and synthetic surveys is available on port 8097;
-login and the authenticated editor were checked. This does not replace the pending
-participant lifecycle, OpenCPU and provider/pilot acceptance in QUOTA_LIFECYCLE.md.
+login and the authenticated editor were checked. Participant lifecycle checks are
+documented in QUOTA_BROWSER_ACCEPTANCE.md. OpenCPU and real provider/pilot acceptance
+remain pending.
 
 Screenshots were inspected through the browser tool. Saving a screenshot to the host
 output directory was denied (EPERM), so no local screenshot artifact is claimed.

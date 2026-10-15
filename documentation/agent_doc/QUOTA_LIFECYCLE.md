@@ -79,7 +79,7 @@ numbers must be coordinated with upstream before submission/deployment.
 ## Verification and remaining release work
 
 - Standard SQLite unit lane: user-run outside the Windows agent sandbox,
-  238 tests / 588 assertions passed, 11 PHPUnit deprecations. This includes the 76
+  240 tests / 604 assertions passed, 11 PHPUnit deprecations, after the resume fix. This includes the 76
   focused rules/provider/run-unit tests, so those must not be counted a second time.
 - Focused standalone PHP lane: 76 tests / 178 assertions passed.
 - Disposable MariaDB lane: 95 tests / 366 assertions passed. Includes native legacy
@@ -101,7 +101,13 @@ draft editing only, not this full participant lifecycle or provider settings pan
 
 Still required: researcher monitor and audited correction/limit controls; revocable
 read-only provider monitor; response export columns; portable run import/export;
-production-copy migration rehearsal and authenticated participant browser runs; provider-approved test links;
+production-copy migration rehearsal and OpenCPU-backed participant browser runs; provider-approved test links;
 pilot/retry/failure checks and a reviewed release/rollback procedure. Test reset/status
 changes and provider changes after activation need decisions before exposing them.
 The production VM and AI integration have not been changed.
+
+Authenticated local participant acceptance now covers admission, completion, overfill,
+missing/unmatched answers, independent tables, abandonment, cohort separation, source
+failure/recovery and all three synthetic provider exits. A native session-resume defect
+was fixed and regression-tested. See QUOTA_BROWSER_ACCEPTANCE.md for evidence and limits;
+this does not replace R-filter, real-provider or deployment-level acceptance.

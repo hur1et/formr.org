@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - 2026-10-14: Initial quota rule evaluator with automatic category cross-products, inclusive integer ranges, gap diagnostics and all-table eligibility checks. Invalid definitions or count snapshots raise errors separately from participant rejections. Standalone unit tests added. Not yet connected to run units, persistence or provider redirects.
 
 ### Fixes
+- 2026-10-15: Resumed run-unit sessions now reload their trusted database row through the constructor's supported lookup path. Prevents Quota/Complete retries from losing run-unit identity after page reload. Two regression cases and local authenticated participant acceptance documented in `documentation/agent_doc/QUOTA_BROWSER_ACCEPTANCE.md`.
 - 2026-10-15: Quota sources accept the legacy NULL validity flag left by native survey imports and resolve physical table names according to MariaDB's case-sensitivity setting. Ownership ambiguity remains an error, including case variants on Windows. Three additional MariaDB regression cases.
 - 2026-10-15: Webpack's Babel exclusion for core-js/regenerator-runtime now recognizes Windows path separators. Prevents recursively injected polyfills from crashing browser startup before CSS is installed.
 

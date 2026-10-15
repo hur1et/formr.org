@@ -540,7 +540,9 @@ class RunSession extends Model {
             $u = $row;
             $u['id'] = $u['unit_id'];
             $unit = RunUnitFactory::make($this->run, $u);
-            $this->currentUnitSession = new UnitSession($this, $unit, $row);
+            // The constructor accepts lookup keys only; reload the trusted row so
+            // resumed units retain their run-unit identity and persisted state.
+            $this->currentUnitSession = new UnitSession($this, $unit, ['id' => $row['id'], 'load' => true]);
             return $this->currentUnitSession;
         } else {
             return false;
