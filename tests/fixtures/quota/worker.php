@@ -28,6 +28,10 @@ try {
             $result = $store->adjust(1, $payload['quota'], 'education', 'uni', 'field',
                 $payload['delta'], 7, 'Concurrent correction', $payload['key']);
             break;
+        case 'overview':
+            $store->saveOverview(1,$payload['quota'],'field',$payload['rows'],7,$payload['key'],$payload['definition_hash']);
+            $result=true;
+            break;
         default:
             throw new InvalidArgumentException('Unknown worker operation.');
     }

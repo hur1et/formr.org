@@ -11,6 +11,7 @@ require_once __DIR__ . '/../application/Services/QuotaEditor.php';
 require_once __DIR__ . '/../application/Services/QuotaProviderConfig.php';
 require_once __DIR__ . '/../application/Services/QuotaProviderStore.php';
 require_once __DIR__ . '/../application/Services/QuotaRuntime.php';
+require_once __DIR__ . '/../application/Services/QuotaOverview.php';
 
 /** Creates and drops only a randomly named disposable database, never the configured app DB. */
 #[Group('integration')]
@@ -51,6 +52,7 @@ class QuotaStoreTest extends TestCase {
         self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/060_quota_core.sql'));
         self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/061_quota_drafts.sql'));
         self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/062_quota_lifecycle.sql'));
+        self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/063_quota_overview_edits.sql'));
     }
 
     public static function tearDownAfterClass(): void {
@@ -63,7 +65,7 @@ class QuotaStoreTest extends TestCase {
     }
 
     protected function setUp(): void {
-        foreach (['survey_quota_provider_ids','survey_quota_lifecycle','survey_quota_exit_drafts','survey_quota_drafts', 'survey_quota_limit_changes', 'survey_quota_adjustments', 'survey_quota_completions',
+        foreach (['survey_quota_edits','survey_quota_provider_ids','survey_quota_lifecycle','survey_quota_exit_drafts','survey_quota_drafts', 'survey_quota_limit_changes', 'survey_quota_adjustments', 'survey_quota_completions',
             'survey_quota_assignments', 'survey_quota_decisions', 'survey_quota_groups', 'survey_quota_tables',
             'survey_quotas', 'quota_demo_results', 'survey_item_choices', 'survey_items', 'survey_studies',
             'survey_run_units', 'survey_unit_sessions', 'survey_pages', 'survey_units', 'survey_run_sessions', 'survey_runs'] as $table) {
@@ -644,6 +646,211 @@ class QuotaStoreTest extends TestCase {
     public function testSavedAnswerLoaderRefusesToRunOutsideTransaction(): void {
         $this->expectException(LogicException::class);
         (new QuotaAnswerLoader(self::$db))->load(1, 1, 202, self::tables());
+    }
+
+    private function overviewRows(string $cohort='field'): array {
+        $snapshot=$this->store->overview(1,$this->quota,$cohort,7);
+        $rows=[];
+        foreach ((new QuotaRules($snapshot['tables']))->getGroups() as $table=>$groups) {
+            foreach ($groups as $group=>$definition) {
+                $count=$snapshot['counts'][$table][$group];
+                $rows[$table][$group]=['limit'=>$definition['limit'],'base_limit'=>$definition['limit'],
+                    'count'=>$count,'base_count'=>$count,'reason'=>'Review'];
+            }
+        }
+        return $rows;
+    }
+
+    private function saveOverview(array $rows,string $key='overview-1',string $cohort='field',int $actor=7): void {
+        $this->store->saveOverview(1,$this->quota,$cohort,$rows,$actor,$key,QuotaStore::definitionHash(self::tables()));
+    }
+
+    public function testOverviewCountCorrectionPreservesNewCompletionsAndRetries(): void {
+        $this->admit(1); $this->admit(2);
+        $this->store->complete(1,$this->quota,1,101);
+        $rows=$this->overviewRows();
+        $rows['age_sex']['adult|female']['count']=0;
+        $rows['education']['uni']['count']=0;
+        $this->store->complete(1,$this->quota,2,102);
+        $this->saveOverview($rows);
+        $this->assertCounts(1);
+        $this->saveOverview($rows);
+        $this->assertCounts(1);
+        self::assertSame(2,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_completions')->fetchColumn());
+        self::assertSame(2,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_adjustments')->fetchColumn());
+        self::assertSame(1,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_edits')->fetchColumn());
+    }
+
+    public function testOverviewRetryRejectsChangedPayload(): void {
+        $rows=$this->overviewRows(); $this->saveOverview($rows);
+        $rows['education']['uni']['limit']=5;
+        $this->expectException(DomainException::class);
+        $this->saveOverview($rows);
+    }
+
+    public function testOverviewChangesOnlySelectedCohortAndAuditsLimitAndCount(): void {
+        $rows=$this->overviewRows('test');
+        $rows['education']['uni']['count']=2;
+        $rows['education']['uni']['limit']=4;
+        $this->saveOverview($rows,'test-save','test');
+        self::assertSame(0,$this->store->getCounts(1,$this->quota,'field')['education']['uni']);
+        self::assertSame(2,$this->store->getCounts(1,$this->quota,'test')['education']['uni']);
+        $snapshot=$this->store->overview(1,$this->quota,'test',7);
+        self::assertSame(0,$snapshot['completed']);
+        self::assertSame(4,$snapshot['tables']['education']['limits']['uni']);
+        self::assertSame('Review',self::$db->query('SELECT reason FROM survey_quota_adjustments')->fetchColumn());
+    }
+
+    public function testOverviewBatchRollsBackAllTablesOnMissingReason(): void {
+        $rows=$this->overviewRows();
+        $rows['age_sex']['adult|female']['limit']=5;
+        $rows['education']['uni']['count']=1;
+        $rows['education']['uni']['reason']='';
+        try { $this->saveOverview($rows); self::fail('Missing correction reason accepted.'); }
+        catch (InvalidArgumentException $error) { self::assertStringContainsString('reason',$error->getMessage()); }
+        self::assertSame(1,$this->store->overview(1,$this->quota,'field',7)['tables']['age_sex']['limits']['adult|female']);
+        self::assertSame(0,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_limit_changes')->fetchColumn());
+        self::assertSame(0,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_edits')->fetchColumn());
+    }
+
+    public function testOverviewUnchangedLimitDoesNotOverwriteConcurrentLimitEdit(): void {
+        $rows=$this->overviewRows();
+        $this->store->setLimit(1,$this->quota,'education','uni',8,7,'Other edit','other');
+        $rows['age_sex']['adult|female']['limit']=3;
+        $this->saveOverview($rows);
+        self::assertSame(8,$this->store->overview(1,$this->quota,'field',7)['tables']['education']['limits']['uni']);
+    }
+
+    public function testOverviewRejectsConcurrentEditOfChangedLimit(): void {
+        $rows=$this->overviewRows(); $rows['education']['uni']['limit']=4;
+        $this->store->setLimit(1,$this->quota,'education','uni',8,7,'Other edit','other');
+        $this->expectException(DomainException::class);
+        $this->saveOverview($rows);
+    }
+
+    public function testOverviewRequiresOwner(): void {
+        $this->expectException(DomainException::class);
+        $this->saveOverview($this->overviewRows(),'not-owner','field',8);
+    }
+
+    public function testOverviewNegativeResultCannotWriteCorrection(): void {
+        $this->admit(); $this->store->complete(1,$this->quota,1,101);
+        $rows=$this->overviewRows(); $rows['education']['uni']['count']=0;
+        $this->store->adjust(1,$this->quota,'education','uni','field',-1,7,'Other correction','other');
+        try { $this->saveOverview($rows); self::fail('Negative count accepted.'); }
+        catch (DomainException $error) { self::assertStringContainsString('negative',$error->getMessage()); }
+        self::assertSame(0,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_edits')->fetchColumn());
+    }
+
+    public function testOverviewReceiptFailureRollsBackAllEdits(): void {
+        $rows=$this->overviewRows();
+        $rows['age_sex']['adult|female']['limit']=5;
+        $rows['education']['uni']['count']=1;
+        self::$db->exec("CREATE TRIGGER fail_overview BEFORE INSERT ON survey_quota_edits FOR EACH ROW
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'injected receipt failure'");
+        try { $this->saveOverview($rows); self::fail('Receipt failure expected.'); }
+        catch (PDOException $error) { self::assertStringContainsString('injected receipt failure',$error->getMessage()); }
+        finally { self::$db->exec('DROP TRIGGER fail_overview'); }
+        $this->assertCounts(0);
+        self::assertSame(1,$this->store->overview(1,$this->quota,'field',7)['tables']['age_sex']['limits']['adult|female']);
+        self::assertSame(0,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_limit_changes')->fetchColumn());
+        self::assertSame(0,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_adjustments')->fetchColumn());
+    }
+
+    public function testOverviewIsAccessibleWithoutQuotaUnit(): void {
+        $snapshot=(new QuotaOverview(self::$db))->read(2,8,'field');
+        self::assertSame([],$snapshot['groups']);
+        self::assertSame(0,$snapshot['completed']);
+    }
+
+    public function testDraftOverviewSavesLimitsWithoutActivation(): void {
+        $tables=$this->seedEditor();
+        (new QuotaEditor(self::$db))->save(1,202,7,$tables);
+        $overview=new QuotaOverview(self::$db);
+        $snapshot=$overview->read(1,7,'field');
+        $rows=$snapshot['groups'];
+        foreach ($rows as &$groups) {
+            foreach ($groups as &$row) { $row['base_limit']=$row['limit']; $row['base_count']=0; }
+            unset($row);
+        }
+        unset($groups);
+        $rows['education']['uni']['limit']='9';
+        $overview->save(1,7,'field',0,$snapshot['definition_hash'],$rows,'draft-save');
+        $overview->save(1,7,'field',0,$snapshot['definition_hash'],$rows,'draft-save');
+        self::assertSame(9,$overview->read(1,7,'field')['groups']['education']['uni']['limit']);
+        self::assertSame(0,(int)self::$db->query('SELECT COUNT(*) FROM survey_quotas')->fetchColumn());
+        self::assertSame(9,(new QuotaEditor(self::$db))->load(1,202,7)['education']['limits']['uni']);
+    }
+
+    public function testDraftSaveDoesNotApplyAfterActivation(): void {
+        $this->seedLifecycle(false,false);
+        $overview=new QuotaOverview(self::$db);
+        $snapshot=$overview->read(1,7,'field');
+        $rows=$snapshot['groups'];
+        foreach ($rows as &$groups) {
+            foreach ($groups as &$row) { $row['base_limit']=$row['limit']; $row['base_count']=0; }
+            unset($row);
+        }
+        unset($groups);
+        $this->store->activate(1,7);
+        $this->expectException(DomainException::class);
+        $overview->save(1,7,'field',0,$snapshot['definition_hash'],$rows,'old-draft');
+    }
+
+    public function testDraftSaveRejectsChangedCategoryMeaningWithSameGroupCode(): void {
+        $tables=$this->seedEditor();
+        $editor=new QuotaEditor(self::$db); $editor->save(1,202,7,$tables);
+        $overview=new QuotaOverview(self::$db); $snapshot=$overview->read(1,7,'field');
+        $rows=$snapshot['groups'];
+        foreach ($rows as &$groups) {
+            foreach ($groups as &$row) { $row['base_limit']=$row['limit']; $row['base_count']=0; }
+            unset($row);
+        }
+        unset($groups);
+        $tables['age_sex']['dimensions'][0]['categories']['adult']['max']=28;
+        $editor->save(1,202,7,$tables);
+        $this->expectException(DomainException::class);
+        $overview->save(1,7,'field',0,$snapshot['definition_hash'],$rows,'old-meaning');
+    }
+
+    public function testOverviewRejectsIncompleteGroupSubmission(): void {
+        $rows=$this->overviewRows(); unset($rows['education']);
+        $this->expectException(InvalidArgumentException::class);
+        $this->saveOverview($rows);
+    }
+
+    public function testActiveEditorShowsUpdatedOverviewLimits(): void {
+        $this->quota=$this->seedLifecycle();
+        $snapshot=$this->store->overview(1,$this->quota,'field',7);
+        $rows=$this->overviewRows(); $rows['education']['uni']['limit']=9;
+        $this->store->saveOverview(1,$this->quota,'field',$rows,7,'active-save',QuotaStore::definitionHash($snapshot['tables']));
+        self::assertSame(9,(new QuotaEditor(self::$db))->load(1,202,7)['education']['limits']['uni']);
+    }
+
+    public function testConcurrentOverviewResubmissionsCorrectOnlyOnce(): void {
+        $rows=$this->overviewRows(); $rows['education']['uni']['count']=2;
+        $payload=['operation'=>'overview','quota'=>$this->quota,'rows'=>$rows,'key'=>'same-save',
+            'definition_hash'=>QuotaStore::definitionHash(self::tables())];
+        $results=$this->concurrently([$payload,$payload]);
+        foreach ($results as $result) { self::assertArrayNotHasKey('error',$result); }
+        self::assertSame(2,$this->store->getCounts(1,$this->quota,'field')['education']['uni']);
+        self::assertSame(1,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_adjustments')->fetchColumn());
+    }
+
+    public function testConcurrentCompletionAndOverviewCorrectionPreserveBothWrites(): void {
+        $this->admit(1); $this->admit(2);
+        $this->store->complete(1,$this->quota,1,101);
+        $rows=$this->overviewRows();
+        $rows['age_sex']['adult|female']['count']=0;
+        $rows['education']['uni']['count']=0;
+        $results=$this->concurrently([
+            ['operation'=>'overview','quota'=>$this->quota,'rows'=>$rows,'key'=>'race-save',
+                'definition_hash'=>QuotaStore::definitionHash(self::tables())],
+            ['operation'=>'complete','quota'=>$this->quota,'session'=>2,'unit_session'=>102],
+        ]);
+        foreach ($results as $result) { self::assertArrayNotHasKey('error',$result); }
+        $this->assertCounts(1);
+        self::assertSame(2,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_completions')->fetchColumn());
     }
 
     private function seedEditor(): array {

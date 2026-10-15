@@ -17,8 +17,8 @@ the drafts. Repeating the activation service returns the existing identity. An o
 editor submission after activation can report that the definition is already fixed;
 reload the editor to see the active state. It cannot create a second definition.
 
-Active category controls are read-only. Existing store methods still support audited
-limit/count changes, but their researcher-facing controls are a later milestone.
+Active category controls are read-only. The Quotas menu now provides audited limit/count
+changes; see QUOTA_OVERVIEW.md for all-table saves and concurrent completion handling.
 Provider settings are also held fixed in this development version. Safe field editing
 and its effect on existing participations need an explicit product decision before
 that editing is enabled; this guard is not a completed configuration-versioning feature.
@@ -79,10 +79,11 @@ numbers must be coordinated with upstream before submission/deployment.
 ## Verification and remaining release work
 
 - Standard SQLite unit lane: user-run outside the Windows agent sandbox,
-  240 tests / 604 assertions passed, 11 PHPUnit deprecations, after the resume fix. This includes the 76
+  253 tests / 617 assertions passed, 11 PHPUnit deprecations, including the overview. This includes the 76
   focused rules/provider/run-unit tests, so those must not be counted a second time.
 - Focused standalone PHP lane: 76 tests / 178 assertions passed.
-- Disposable MariaDB lane: 95 tests / 366 assertions passed. Includes native legacy
+- Disposable MariaDB lane: 112 tests / 418 assertions passed. Includes overview saves,
+  concurrent corrections/completions and rollback, as well as native legacy
   import metadata and Windows table-name/ownership handling as well as activation
   rollback, ownership/order/source failures, saved admissions/completions, all exits,
   missing identity recovery, injected terminal write failures and concurrent writers.
@@ -99,8 +100,9 @@ fixture exercises the real editor template/JS, but has no authenticated backend 
 its activation button is deliberately disabled. Earlier browser acceptance concerns
 draft editing only, not this full participant lifecycle or provider settings panel.
 
-Still required: researcher monitor and audited correction/limit controls; revocable
-read-only provider monitor; response export columns; portable run import/export;
+Researcher overview and audited correction/limit controls are implemented and checked;
+patch 063 is required for active saves. Still required: revocable read-only provider
+monitor; response export columns; portable run import/export;
 production-copy migration rehearsal and OpenCPU-backed participant browser runs; provider-approved test links;
 pilot/retry/failure checks and a reviewed release/rollback procedure. Test reset/status
 changes and provider changes after activation need decisions before exposing them.

@@ -57,6 +57,9 @@ class QuotaEditor {
 
     public function load(int $runId, int $runUnitId, int $actorId): array {
         $this->assertUnit($runId, $runUnitId, $actorId);
+        $quota=$this->query('SELECT quota_id FROM survey_quota_lifecycle WHERE run_id=? AND quota_run_unit_id=?',
+            [$runId,$runUnitId])->fetchColumn();
+        if ($quota!==false) { return (new QuotaStore($this->pdo))->overview($runId,(int)$quota,'field',$actorId)['tables']; }
         $json = $this->query('SELECT tables_json FROM survey_quota_drafts WHERE run_id=? AND run_unit_id=?',
             [$runId, $runUnitId])->fetchColumn();
         return $json === false ? [] : json_decode($json, true, 512, JSON_THROW_ON_ERROR);

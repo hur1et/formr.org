@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 ## [Unreleased]
 
 ### Added
+- 2026-10-15: Researcher Quotas page, always available in the run menu. Native group tables show limits, cohort counts and fulfilment before or after activation. Refresh and whole-page Save; audited count differences preserve concurrent completions, and repeated submissions are deduplicated atomically. Patch 063 stores save receipts. Active run-editor limits reflect overview edits.
 - 2026-10-15: Quota/Complete forms use native formr styling with compact group tables and English interface text. The local preview uses the actual module wrapper/styles and includes Complete/end-page views. Module explanations describe configuration, counting and provider exits. Identifiers and counting behavior are unchanged.
 - 2026-10-15: Explicit quota activation, native admission/completion execution and retry-safe terminal exits. One configurable provider profile per run or explicit local completion; captured provider identities, three return URL templates and Page screen-out option. Test exits show plain text only. Patch 062 and lifecycle/provider regression tests; monitors, response exports and full application acceptance remain pending.
 - 2026-10-15: Development Quota/Complete run-editor entries and owner-validated quota drafts. Supports variable selection, integer ranges, category crossing and limits; drafts do not execute participant admission/completion yet. Patch 061, browser fixture, DOM and MariaDB draft tests added.

@@ -43,8 +43,8 @@ Verification after this refinement:
 - Responsive checks requested 375, 768 and 1440 pixels; observed content widths were
   360, 753 and 1440, with no document-level horizontal overflow. Viewport reset afterwards.
 
-The user's latest standard-suite pass after the interface and resume fixes is 240
-tests / 604 assertions, with 11 existing PHPUnit deprecations. The agent sandbox
+The user's latest standard-suite pass including the overview is 253
+tests / 617 assertions, with 11 existing PHPUnit deprecations. The agent sandbox
 has separate file-read probe limitations; no application loader/Crypto changes were made.
 The full local schema with migrations and synthetic surveys is available on port 8097;
 login and the authenticated editor were checked. Participant lifecycle checks are
@@ -53,3 +53,9 @@ remain pending.
 
 Screenshots were inspected through the browser tool. Saving a screenshot to the host
 output directory was denied (EPERM), so no local screenshot artifact is claimed.
+
+The researcher overview is now implemented and browser-checked in the authenticated
+application. It offers all-table Save and Refresh, cohort selection, draft limits and
+audited count corrections that retain concurrent completions. Its separate MariaDB
+lane passes 112 tests / 418 assertions. See [QUOTA_OVERVIEW.md](QUOTA_OVERVIEW.md)
+for behavior, migration 063 and acceptance evidence.

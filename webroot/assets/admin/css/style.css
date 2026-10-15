@@ -40,6 +40,11 @@ input:focus {outline:none;}
 .quota-editor .quota-groups input { width: 80px; }
 .quota-editor .quota-groups code { color: #555; background: none; padding: 0; white-space: nowrap; }
 .quota-editor .quota-editor-error[hidden] { display: none; }
+.quota-overview .quota-number { width: 90px; }
+.quota-overview .quota-reason { margin-top: 5px; min-width: 130px; max-width: 220px; }
+.quota-overview td { vertical-align: middle !important; }
+.quota-overview code { white-space: nowrap; color: #555; background: none; }
+.quota-overview .quota-completed { margin-top: 15px; }
 .quota-provider label { display: block; }
 .quota-provider .form-control { display: block; width: 100%; max-width: 100%; }
 .quota-provider .help-block { font-size: 12px; }

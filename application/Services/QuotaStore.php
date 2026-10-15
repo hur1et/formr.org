@@ -230,6 +230,86 @@ class QuotaStore {
         });
     }
 
+    /** Owner-only, consistent snapshot for the researcher overview. */
+    public function overview(int $runId, int $quotaId, string $cohort, int $actorId): array {
+        self::checkCohort($cohort);
+        return $this->withQuota($runId, $quotaId, function () use ($runId,$quotaId,$cohort,$actorId) {
+            $this->requireOwner($runId,$actorId);
+            $definitions=$this->definitions($quotaId);
+            return ['tables'=>$definitions['tables'],'counts'=>$this->counts($quotaId,$cohort,$definitions),
+                'completed'=>(int)$this->query('SELECT COUNT(*) FROM survey_quota_completions c
+                    JOIN survey_quota_decisions d ON d.id=c.decision_id WHERE d.quota_id=? AND d.cohort=?',
+                    [$quotaId,$cohort])->fetchColumn()];
+        });
+    }
+
+    /** All submitted groups commit together; count edits are deltas from the displayed snapshot. */
+    public function saveOverview(int $runId, int $quotaId, string $cohort, array $rows,
+        int $actorId, string $operationKey, string $definitionHash): void {
+        self::checkCohort($cohort);
+        self::checkAudit('Quota overview',$operationKey);
+        $payloadHash=hash('sha256',json_encode([$actorId,$cohort,$rows,$definitionHash],JSON_THROW_ON_ERROR));
+        $this->withQuota($runId,$quotaId,function () use ($runId,$quotaId,$cohort,$rows,$actorId,
+            $operationKey,$definitionHash,$payloadHash) {
+            $this->requireOwner($runId,$actorId);
+            $saved=$this->query('SELECT payload_hash FROM survey_quota_edits WHERE quota_id=? AND operation_key=?',
+                [$quotaId,$operationKey])->fetchColumn();
+            if ($saved!==false) {
+                if (!hash_equals($saved,$payloadHash)) { throw new DomainException('This save was already used for different changes. Refresh and try again.'); }
+                return;
+            }
+            $definitions=$this->definitions($quotaId);
+            if (!hash_equals(self::definitionHash($definitions['tables']),$definitionHash)) {
+                throw new DomainException('Quota groups changed. Refresh before saving.');
+            }
+            if (array_diff_key($rows,$definitions['groups']) || array_diff_key($definitions['groups'],$rows)) {
+                throw new InvalidArgumentException('Submit all quota tables together.');
+            }
+            $counts=$this->counts($quotaId,$cohort,$definitions);
+            foreach ($definitions['groups'] as $table=>$groups) {
+                if (!is_array($rows[$table]) || array_diff_key($groups,$rows[$table]) || array_diff_key($rows[$table],$groups)) {
+                    throw new InvalidArgumentException('The submitted quota groups do not match.');
+                }
+                foreach ($groups as $group=>$identity) {
+                    $row=$rows[$table][$group];
+                    foreach (['limit','base_limit','count','base_count'] as $field) {
+                        if (!isset($row[$field]) || !is_int($row[$field]) || $row[$field]<0
+                            || (str_contains($field,'limit') && $row[$field]>4294967295)) {
+                            throw new InvalidArgumentException('Limits and counts must be nonnegative whole numbers.');
+                        }
+                    }
+                    $delta=$row['count']-$row['base_count'];
+                    $reason=trim($row['reason']??'');
+                    if (strlen($reason)>2000 || ($delta!==0 && $reason==='')) {
+                        throw new InvalidArgumentException('Give a short reason for each count correction.');
+                    }
+                    $newCount=$counts[$table][$group]+$delta;
+                    if (!is_int($newCount) || $newCount<0) { throw new DomainException('The correction would make a count negative. Refresh and try again.'); }
+                    $key=hash('sha256',$operationKey.'|'.$table.'|'.$group);
+                    if ($row['limit']!==$row['base_limit']) {
+                        $old=$definitions['tables'][$table]['limits'][$group];
+                        if ($old!==$row['base_limit']) { throw new DomainException('A limit changed while you were editing. Refresh and try again.'); }
+                        $this->query('UPDATE survey_quota_groups SET quota_limit=? WHERE id=?',[$row['limit'],$identity['id']]);
+                        $this->query('INSERT INTO survey_quota_limit_changes
+                            (quota_id,table_id,group_id,old_limit,new_limit,actor_id,reason,operation_key) VALUES (?,?,?,?,?,?,?,?)',
+                            [$quotaId,$identity['table_id'],$identity['id'],$old,$row['limit'],$actorId,'Quota overview',$key]);
+                    }
+                    if ($delta!==0) {
+                        $this->query('INSERT INTO survey_quota_adjustments
+                            (quota_id,table_id,group_id,cohort,delta,actor_id,reason,operation_key) VALUES (?,?,?,?,?,?,?,?)',
+                            [$quotaId,$identity['table_id'],$identity['id'],$cohort,$delta,$actorId,$reason,$key]);
+                    }
+                }
+            }
+            $this->query('INSERT INTO survey_quota_edits (quota_id,operation_key,payload_hash) VALUES (?,?,?)',
+                [$quotaId,$operationKey,$payloadHash]);
+        });
+    }
+
+    public static function definitionHash(array $tables): string {
+        return hash('sha256',json_encode(array_map(static fn($table)=>$table['dimensions'],$tables),JSON_THROW_ON_ERROR));
+    }
+
     /** Regenerate combinations and check the stored group set before trusting it. */
     private function definitions(int $quotaId): array {
         $tables = $groups = [];

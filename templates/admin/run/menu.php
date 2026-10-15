@@ -33,6 +33,8 @@
 
             <li><a href="<?php echo admin_run_url($run->name, 'overview'); ?>" title="Here you can monitor your custom progress indicators, do preliminary data analysis and so on."><i class="fa fa-eye"></i> Overview</a></li>
 
+            <li><a href="<?= admin_run_url($run->name, 'quotas') ?>"><i class="fa fa-users"></i> Quotas</a></li>
+
             <li><a href="<?php echo admin_run_url($run->name, 'create_new_named_session'); ?>" title="Generate a named test session. People might want this to connect e.g. ciphers to data."><i class="fa fa-user"></i> New Named User</a></li>
         </ul>
     </div>

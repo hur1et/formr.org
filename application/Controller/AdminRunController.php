@@ -507,6 +507,33 @@ class AdminRunController extends AdminController
         return $this->sendResponse();
     }
 
+    private function quotasAction()
+    {
+        $overview=new QuotaOverview($this->fdb->pdo());
+        $cohort=$this->request->str('cohort','field');
+        $posted=[];
+        if (Request::isHTTPPostRequest()) {
+            $posted=$this->request->getParams();
+            $posted['definition_hash']=$this->request->str('definition_hash');
+            $posted['operation_key']=$this->request->str('operation_key');
+            try {
+                if (!is_array($this->request->getParam('rows'))) { throw new InvalidArgumentException('Invalid quota groups.'); }
+                $overview->save((int)$this->run->id,(int)$this->user->id,$cohort,
+                    $this->request->int('quota_id'),$this->request->str('definition_hash'),
+                    $this->request->getParam('rows',[]),$this->request->str('operation_key'));
+                alert('Quotas saved.','alert-success');
+                $this->request->redirect(admin_run_url($this->run->name,'quotas?cohort='.$cohort));
+            } catch (InvalidArgumentException | DomainException $error) {
+                alert(h($error->getMessage()),'alert-danger');
+            }
+        }
+        $snapshot=$overview->read((int)$this->run->id,(int)$this->user->id,$cohort);
+        $this->setView('run/quotas',['quota_overview'=>$snapshot,'cohort'=>$cohort,'posted'=>$posted,
+            'operation_key'=>preg_match('/\A[A-Za-z0-9_-]{1,64}\z/',$posted['operation_key']??'')
+                ? $posted['operation_key'] : bin2hex(random_bytes(24))]);
+        return $this->sendResponse();
+    }
+
     private function overviewAction()
     {
         $this->setView('run/overview', array(
