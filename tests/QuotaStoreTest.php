@@ -12,6 +12,7 @@ require_once __DIR__ . '/../application/Services/QuotaProviderConfig.php';
 require_once __DIR__ . '/../application/Services/QuotaProviderStore.php';
 require_once __DIR__ . '/../application/Services/QuotaRuntime.php';
 require_once __DIR__ . '/../application/Services/QuotaOverview.php';
+require_once __DIR__ . '/../application/Services/QuotaMonitor.php';
 
 /** Creates and drops only a randomly named disposable database, never the configured app DB. */
 #[Group('integration')]
@@ -34,7 +35,7 @@ class QuotaStoreTest extends TestCase {
         putenv('QUOTA_TEST_WORKER_DSN=' . $dsn);
         self::$db = new PDO($dsn, getenv('QUOTA_TEST_USER') ?: 'root', getenv('QUOTA_TEST_PASSWORD') ?: '',
             [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]);
-        self::$db->exec('CREATE TABLE survey_runs (id INT UNSIGNED PRIMARY KEY, user_id INT UNSIGNED NOT NULL) ENGINE=InnoDB;
+        self::$db->exec('CREATE TABLE survey_runs (id INT UNSIGNED PRIMARY KEY, user_id INT UNSIGNED NOT NULL, name VARCHAR(45) UNIQUE) ENGINE=InnoDB;
             CREATE TABLE survey_run_sessions (id INT UNSIGNED PRIMARY KEY, run_id INT UNSIGNED NOT NULL, testing TINYINT DEFAULT 0,
                 current_unit_session_id INT UNSIGNED NULL, position INT NULL, ended DATETIME NULL) ENGINE=InnoDB;
             CREATE TABLE survey_units (id INT UNSIGNED PRIMARY KEY, type VARCHAR(32) NOT NULL) ENGINE=InnoDB;
@@ -53,6 +54,7 @@ class QuotaStoreTest extends TestCase {
         self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/061_quota_drafts.sql'));
         self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/062_quota_lifecycle.sql'));
         self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/063_quota_overview_edits.sql'));
+        self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/064_quota_shares.sql'));
     }
 
     public static function tearDownAfterClass(): void {
@@ -65,13 +67,13 @@ class QuotaStoreTest extends TestCase {
     }
 
     protected function setUp(): void {
-        foreach (['survey_quota_edits','survey_quota_provider_ids','survey_quota_lifecycle','survey_quota_exit_drafts','survey_quota_drafts', 'survey_quota_limit_changes', 'survey_quota_adjustments', 'survey_quota_completions',
+        foreach (['survey_quota_shares','survey_quota_edits','survey_quota_provider_ids','survey_quota_lifecycle','survey_quota_exit_drafts','survey_quota_drafts', 'survey_quota_limit_changes', 'survey_quota_adjustments', 'survey_quota_completions',
             'survey_quota_assignments', 'survey_quota_decisions', 'survey_quota_groups', 'survey_quota_tables',
             'survey_quotas', 'quota_demo_results', 'survey_item_choices', 'survey_items', 'survey_studies',
             'survey_run_units', 'survey_unit_sessions', 'survey_pages', 'survey_units', 'survey_run_sessions', 'survey_runs'] as $table) {
             self::$db->exec('DELETE FROM ' . $table);
         }
-        self::$db->exec('INSERT INTO survey_runs VALUES (1, 7), (2, 8);
+        self::$db->exec('INSERT INTO survey_runs VALUES (1, 7,"study-one"), (2, 8,"study-two");
             INSERT INTO survey_run_sessions (id,run_id,testing) VALUES (1,1,0), (2,1,0), (3,1,0), (4,1,1), (5,1,1), (6,2,0);
             INSERT INTO survey_units VALUES (10,"Complete"), (11,"Survey");
             INSERT INTO survey_unit_sessions (id,run_session_id,unit_id) VALUES (101,1,10), (102,2,10), (103,3,10), (104,4,10), (105,5,10), (106,6,10), (111,1,11);');
@@ -1162,6 +1164,82 @@ class QuotaStoreTest extends TestCase {
         catch (DomainException $error) { self::assertSame('first',$providers->identity($this->quota,1)); }
         self::assertSame(['wait_user'=>true],(new QuotaRuntime(self::$db))->execute('Complete',1,1,203,101,true));
         $this->assertCounts(0);
+    }
+
+    public function testMonitorLinkIsOptInStableAndRevocable(): void {
+        $monitor=new QuotaMonitor(self::$db);
+        self::assertNull($monitor->key(1,7));
+        $key=$monitor->enable(1,7);
+        self::assertMatchesRegularExpression('/\A[0-9a-f]{64}\z/',$key);
+        self::assertSame($key,$monitor->enable(1,7));
+        self::assertSame($key,$monitor->key(1,7));
+        self::assertNotNull($monitor->read('study-one',$key));
+        $monitor->revoke(1,7);
+        self::assertNull($monitor->key(1,7));
+        self::assertNull($monitor->read('study-one',$key));
+        $newKey=$monitor->enable(1,7);
+        self::assertNotSame($key,$newKey);
+        self::assertNull($monitor->read('study-one',$key));
+        self::assertNotNull($monitor->read('study-one',$newKey));
+    }
+
+    #[DataProvider('monitorOwnerOperations')]
+    public function testMonitorManagementRequiresOwner(string $operation): void {
+        $this->expectException(DomainException::class);
+        (new QuotaMonitor(self::$db))->{$operation}(1,8);
+    }
+    public static function monitorOwnerOperations(): array { return [['key'],['enable'],['revoke']]; }
+
+    public function testMonitorKeyCannotAccessAnotherRunOrMissingRun(): void {
+        $monitor=new QuotaMonitor(self::$db);
+        $key=$monitor->enable(1,7);
+        $other=$monitor->enable(2,8);
+        self::assertNull($monitor->read('study-two',$key));
+        self::assertNull($monitor->read('study-one',$other));
+        self::assertNull($monitor->read('missing',$key));
+        foreach (['',str_repeat('x',64),str_repeat('0',64),$key.'a'] as $invalid) {
+            self::assertNull($monitor->read('study-one',$invalid));
+        }
+    }
+
+    public function testMonitorReturnsCurrentFieldAggregatesOnly(): void {
+        $monitor=new QuotaMonitor(self::$db);
+        $key=$monitor->enable(1,7);
+        $this->admit(4); $this->store->complete(1,$this->quota,4,104);
+        $this->store->adjust(1,$this->quota,'education','uni','test',4,7,'Test only','test-only');
+        self::assertSame(0,$monitor->read('study-one',$key)['completed']);
+        $this->admit(1); $this->store->complete(1,$this->quota,1,101);
+        $this->store->adjust(1,$this->quota,'education','uni','field',1,7,'Synthetic','field-only');
+        $view=$monitor->read('study-one',$key);
+        self::assertSame(['name','completed','groups'],array_keys($view));
+        self::assertSame(1,$view['completed']);
+        self::assertSame(1,$view['groups']['age_sex']['adult|female']['count']);
+        self::assertSame(2,$view['groups']['education']['uni']['count']);
+        self::assertSame(['labels','limit','count'],array_keys($view['groups']['education']['uni']));
+        $this->store->setLimit(1,$this->quota,'education','uni',0,7,'Close','close');
+        self::assertSame(0,$monitor->read('study-one',$key)['groups']['education']['uni']['limit']);
+        self::assertStringNotContainsString($key,json_encode($view,JSON_THROW_ON_ERROR));
+    }
+
+    public function testMonitorSupportsDraftWithoutActivationAndDoesNotCreateParticipation(): void {
+        $tables=$this->seedEditor();
+        (new QuotaEditor(self::$db))->save(1,202,7,$tables);
+        $monitor=new QuotaMonitor(self::$db); $key=$monitor->enable(1,7);
+        $before=(int)self::$db->query('SELECT COUNT(*) FROM survey_run_sessions')->fetchColumn();
+        $view=$monitor->read('study-one',$key);
+        self::assertSame(0,$view['completed']);
+        self::assertNotEmpty($view['groups']);
+        self::assertSame(0,(int)self::$db->query('SELECT COUNT(*) FROM survey_quotas')->fetchColumn());
+        self::assertSame($before,(int)self::$db->query('SELECT COUNT(*) FROM survey_run_sessions')->fetchColumn());
+        self::assertSame(0,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_decisions')->fetchColumn());
+    }
+
+    public function testMonitorReadHasNoQuotaWrites(): void {
+        $monitor=new QuotaMonitor(self::$db); $key=$monitor->enable(1,7);
+        for ($i=0;$i<2;$i++) { self::assertNotNull($monitor->read('study-one',$key)); }
+        foreach (['survey_quota_decisions','survey_quota_completions','survey_quota_adjustments','survey_quota_limit_changes','survey_quota_edits'] as $table) {
+            self::assertSame(0,(int)self::$db->query('SELECT COUNT(*) FROM '.$table)->fetchColumn());
+        }
     }
 
     public function testAdmittedParticipantsCanOverfillAfterLimitReduction(): void {

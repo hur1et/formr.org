@@ -120,6 +120,35 @@ class RunController extends Controller {
         return $this->sendResponse();
     }
 
+    private function quotasAction() {
+        // Dispatch before getRun/loginUser: viewing this page never starts a participation.
+        $this->response->setContentType('text/html; charset=UTF-8');
+        $this->response->setHeader('Cache-Control','no-store, private, max-age=0');
+        $this->response->setHeader('Referrer-Policy','no-referrer');
+        $this->response->setHeader('X-Robots-Tag','noindex, nofollow, noarchive');
+        $this->response->setHeader('X-Content-Type-Options','nosniff');
+        $this->response->setHeader('Content-Security-Policy',"default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
+        if (!in_array($_SERVER['REQUEST_METHOD']??'GET',['GET','HEAD'],true)) {
+            $this->response->setHeader('Allow','GET, HEAD');
+            $this->response->setStatusCode(405,'Method Not Allowed');
+            return $this->sendResponse('Method not allowed.');
+        }
+        try {
+            $monitor=(new QuotaMonitor($this->fdb->pdo()))->read($this->request->str('run_name'),$this->request->str('key'));
+        } catch (Throwable $error) {
+            formr_log(get_class($error),'Quota monitor unavailable');
+            $this->response->setStatusCode(503,'Service Unavailable');
+            return $this->sendResponse('Quota statistics are temporarily unavailable. Please reload later.');
+        }
+        if (!$monitor) {
+            $this->response->setStatusCode(404,'Not Found');
+            return $this->sendResponse('Quota statistics are not available at this address.');
+        }
+        if (($_SERVER['REQUEST_METHOD']??'GET')==='HEAD') { return $this->sendResponse(''); }
+        $this->view=new View('run/quotas',['monitor'=>$monitor]);
+        return $this->sendResponse();
+    }
+
     private function privacy_policyAction() {
         $this->run = $this->getRun();
         $run_name = $this->site->request->run_name;

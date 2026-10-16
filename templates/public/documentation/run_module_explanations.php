@@ -87,6 +87,9 @@
                 <p>
                     Full groups, missing answers and answers outside the configured categories use the <code>quota_full</code> exit. A technical error instead keeps the participant at the module for a retry. Save the Complete exit settings before activating Quota. Activation fixes the categories and provider settings.
                 </p>
+                <p>
+                    Under <strong>Provider statistics</strong> on the Quotas page, choose <strong>Create provider link</strong> to share a read-only table. It shows field counts only and loads current figures whenever it is reloaded. Anyone with the link can view it without a formr account. <strong>Revoke provider link</strong> disables the old address; creating another link gives it a new key. The page is available before activation too, with saved groups and zero counts.
+                </p>
             </div>
         </div>
     </div>

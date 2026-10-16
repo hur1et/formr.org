@@ -101,8 +101,9 @@ its activation button is deliberately disabled. Earlier browser acceptance conce
 draft editing only, not this full participant lifecycle or provider settings panel.
 
 Researcher overview and audited correction/limit controls are implemented and checked;
-patch 063 is required for active saves. Still required: revocable read-only provider
-monitor; response export columns; portable run import/export;
+patch 063 is required for active saves. The revocable read-only provider monitor is
+also implemented and checked (patch 064; see QUOTA_MONITOR.md). Apply 060-064 for the
+current Quotas page. Still required: response export columns; portable run import/export;
 production-copy migration rehearsal and OpenCPU-backed participant browser runs; provider-approved test links;
 pilot/retry/failure checks and a reviewed release/rollback procedure. Test reset/status
 changes and provider changes after activation need decisions before exposing them.

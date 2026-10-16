@@ -528,10 +528,32 @@ class AdminRunController extends AdminController
             }
         }
         $snapshot=$overview->read((int)$this->run->id,(int)$this->user->id,$cohort);
+        $shareKey=(new QuotaMonitor($this->fdb->pdo()))->key((int)$this->run->id,(int)$this->user->id);
+        $this->response->setHeader('Cache-Control','no-store, private');
+        $this->response->setHeader('Referrer-Policy','no-referrer');
         $this->setView('run/quotas',['quota_overview'=>$snapshot,'cohort'=>$cohort,'posted'=>$posted,
+            'provider_link'=>$shareKey===null ? null : run_url($this->run->name,'quotas',['key'=>$shareKey]),
             'operation_key'=>preg_match('/\A[A-Za-z0-9_-]{1,64}\z/',$posted['operation_key']??'')
                 ? $posted['operation_key'] : bin2hex(random_bytes(24))]);
         return $this->sendResponse();
+    }
+
+    private function quotaShareAction()
+    {
+        if (!Request::isHTTPPostRequest()) {
+            $this->response->setHeader('Allow','POST');
+            $this->response->badMethod('Method not allowed.');
+        }
+        $monitor=new QuotaMonitor($this->fdb->pdo());
+        $action=$this->request->str('share_action');
+        if ($action==='enable') {
+            $monitor->enable((int)$this->run->id,(int)$this->user->id);
+            alert('Provider link created. Anyone with this link can view field quota statistics.','alert-success');
+        } elseif ($action==='revoke') {
+            $monitor->revoke((int)$this->run->id,(int)$this->user->id);
+            alert('Provider link revoked.','alert-success');
+        } else { $this->response->badRequest('Invalid provider link action.'); }
+        $this->request->redirect(admin_run_url($this->run->name,'quotas'));
     }
 
     private function overviewAction()

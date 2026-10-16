@@ -39,7 +39,7 @@ reason column; no schema migration or user-supplied explanation is needed.
 Patch `063_quota_overview_edits.sql` adds a save receipt keyed by quota and operation
 key. Its payload hash rejects changed reuse; an identical retry is a no-op. Receipt,
 limits and adjustments commit together. This is a retry receipt, not a CSRF mechanism
-or an additional aggregate counter. Apply patches 060-063 for the complete feature;
+or an additional aggregate counter. Apply patches 060-064 for the complete feature;
 coordinate these development migration numbers with upstream before release.
 
 Draft saves lock the run row, recheck ownership, activation and category definitions,
@@ -74,6 +74,7 @@ shadow-input synchronization or automatic rounding was added.
 The local overview is at
 `http://127.0.0.1:8097/admin/run/Quota_Overview_Test/quotas/?cohort=test`.
 Synthetic fixtures are outside the repository. The production VM and AI code are unchanged.
-Still pending: revocable provider read-only monitor, response export, portable run
+The revocable provider read-only monitor is now implemented; see QUOTA_MONITOR.md.
+Still pending: response export, portable run
 import/export, production-copy migration rehearsal, OpenCPU and approved provider
 acceptance, pilot and release/rollback review. This overview is not field release approval.

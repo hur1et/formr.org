@@ -75,6 +75,19 @@
                                 <button class="btn btn-primary" type="submit">Save</button>
                             </form>
                         <?php endif; ?>
+                        <hr>
+                        <h4>Provider statistics</h4>
+                        <p class="help-block">A read-only page with current field quota counts. Anyone with the link can view it.</p>
+                        <?php if ($provider_link!==null): ?>
+                            <div class="form-group">
+                                <label for="quota-provider-link">Provider link</label>
+                                <input id="quota-provider-link" class="form-control" type="text" readonly value="<?= h($provider_link) ?>">
+                            </div>
+                            <p><a href="<?= h($provider_link) ?>" target="_blank" rel="noopener noreferrer">Open provider statistics</a></p>
+                        <?php endif; ?>
+                        <form method="post" action="<?= admin_run_url($run->name,'quota_share') ?>">
+                            <button class="btn btn-default" name="share_action" value="<?= $provider_link===null?'enable':'revoke' ?>" type="submit"><?= $provider_link===null?'Create provider link':'Revoke provider link' ?></button>
+                        </form>
                     </div>
                 </div>
             </div>
