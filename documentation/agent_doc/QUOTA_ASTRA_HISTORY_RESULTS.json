@@ -1,0 +1,70 @@
+{
+    "audited_commit": "0caf2a43df562892beaf5de452210e9af8c4a002",
+    "utc": "2026-10-17T15:40:45+00:00",
+    "scenarios": [
+        {
+            "wall_seconds": 5.733,
+            "errors": [],
+            "admission": {
+                "n": 16,
+                "p50_ms": 1120.334,
+                "p95_ms": 1983.174,
+                "max_ms": 1983.174
+            },
+            "completion": {
+                "n": 16,
+                "p50_ms": 810.841,
+                "p95_ms": 1830.292,
+                "max_ms": 1830.292
+            },
+            "retry": {
+                "n": 1,
+                "p50_ms": 9.663,
+                "p95_ms": 9.663,
+                "max_ms": 9.663
+            },
+            "monitor": {
+                "n": 20,
+                "p50_ms": 225.607,
+                "p95_ms": 1871.786,
+                "max_ms": 1921.44
+            },
+            "seeded_history": 20000,
+            "writers": 8,
+            "readers": 2
+        },
+        {
+            "wall_seconds": 7.998,
+            "errors": [],
+            "admission": {
+                "n": 16,
+                "p50_ms": 2290.131,
+                "p95_ms": 4700.057,
+                "max_ms": 4700.057
+            },
+            "completion": {
+                "n": 16,
+                "p50_ms": 2316.458,
+                "p95_ms": 4692.523,
+                "max_ms": 4692.523
+            },
+            "retry": {
+                "n": 2,
+                "p50_ms": 23.415,
+                "p95_ms": 25.468,
+                "max_ms": 25.468
+            },
+            "monitor": {
+                "n": 20,
+                "p50_ms": 312.189,
+                "p95_ms": 2608.018,
+                "max_ms": 5098.692
+            },
+            "seeded_history": 50000,
+            "writers": 16,
+            "readers": 2
+        }
+    ],
+    "final_completions": 50032,
+    "integrity_checks": "passed"
+}

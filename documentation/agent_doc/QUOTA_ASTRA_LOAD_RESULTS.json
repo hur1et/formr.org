@@ -1,0 +1,205 @@
+{
+    "audited_commit": "0caf2a43df562892beaf5de452210e9af8c4a002",
+    "utc": "2026-10-17T15:31:23+00:00",
+    "php": "8.2.34",
+    "mariadb": "12.1.2-MariaDB",
+    "scenarios": [
+        {
+            "wall_seconds": 181.036,
+            "startup_seconds": 1.247,
+            "admission": {
+                "n": 800,
+                "p50_ms": 828.703,
+                "p95_ms": 2091.638,
+                "max_ms": 2811.307
+            },
+            "completion": {
+                "n": 800,
+                "p50_ms": 613.818,
+                "p95_ms": 1763.999,
+                "max_ms": 2452.883
+            },
+            "retry": {
+                "n": 80,
+                "p50_ms": 1319.996,
+                "p95_ms": 2321.362,
+                "max_ms": 2876.534
+            },
+            "monitor": {
+                "n": 200,
+                "p50_ms": 1434.843,
+                "p95_ms": 2503.355,
+                "max_ms": 2845.053
+            },
+            "error_count": 0,
+            "errors": [],
+            "participants": 800,
+            "writers": 8,
+            "readers": 2
+        },
+        {
+            "wall_seconds": 123.126,
+            "startup_seconds": 1.413,
+            "admission": {
+                "n": 600,
+                "p50_ms": 1343.664,
+                "p95_ms": 2650.035,
+                "max_ms": 2987.902
+            },
+            "completion": {
+                "n": 600,
+                "p50_ms": 1174.238,
+                "p95_ms": 2478.958,
+                "max_ms": 2863.339
+            },
+            "retry": {
+                "n": 60,
+                "p50_ms": 2633.65,
+                "p95_ms": 2958.106,
+                "max_ms": 3020.626
+            },
+            "monitor": {
+                "n": 200,
+                "p50_ms": 251.004,
+                "p95_ms": 2960.913,
+                "max_ms": 3079.445
+            },
+            "error_count": 0,
+            "errors": [],
+            "participants": 600,
+            "writers": 16,
+            "readers": 2
+        },
+        {
+            "wall_seconds": 145.458,
+            "startup_seconds": 2.833,
+            "admission": {
+                "n": 600,
+                "p50_ms": 2856.028,
+                "p95_ms": 5734.844,
+                "max_ms": 7189.822
+            },
+            "completion": {
+                "n": 600,
+                "p50_ms": 2761.26,
+                "p95_ms": 5650.028,
+                "max_ms": 7078.937
+            },
+            "retry": {
+                "n": 60,
+                "p50_ms": 5617.785,
+                "p95_ms": 6981.084,
+                "max_ms": 7476.455
+            },
+            "monitor": {
+                "n": 400,
+                "p50_ms": 270.416,
+                "p95_ms": 6221.8,
+                "max_ms": 7617.384
+            },
+            "error_count": 0,
+            "errors": [],
+            "participants": 600,
+            "writers": 32,
+            "readers": 4
+        }
+    ],
+    "counts": {
+        "field": {
+            "age_sex": {
+                "adult|male": 400,
+                "adult|female": 500,
+                "older|male": 400,
+                "older|female": 500
+            },
+            "education": {
+                "uni": 1200,
+                "other": 600
+            }
+        },
+        "test": {
+            "age_sex": {
+                "adult|male": 100,
+                "adult|female": 0,
+                "older|male": 100,
+                "older|female": 0
+            },
+            "education": {
+                "uni": 134,
+                "other": 66
+            }
+        }
+    },
+    "duplicate_retry_burst": {
+        "wall_seconds": 1.732,
+        "startup_seconds": 2.492,
+        "admission": {
+            "n": 0
+        },
+        "completion": {
+            "n": 0
+        },
+        "retry": {
+            "n": 320,
+            "p50_ms": 168.304,
+            "p95_ms": 174.62,
+            "max_ms": 184.618
+        },
+        "monitor": {
+            "n": 0
+        },
+        "error_count": 0,
+        "errors": []
+    },
+    "near_full": {
+        "admission": {
+            "wall_seconds": 6.05,
+            "startup_seconds": 2.54,
+            "admission": {
+                "n": 32,
+                "p50_ms": 3083.155,
+                "p95_ms": 5872.813,
+                "max_ms": 6033.984
+            },
+            "completion": {
+                "n": 0
+            },
+            "retry": {
+                "n": 0
+            },
+            "monitor": {
+                "n": 0
+            },
+            "error_count": 0,
+            "errors": []
+        },
+        "completion": {
+            "wall_seconds": 0.169,
+            "startup_seconds": 2.399,
+            "admission": {
+                "n": 0
+            },
+            "completion": {
+                "n": 32,
+                "p50_ms": 116.909,
+                "p95_ms": 142.053,
+                "max_ms": 143.709
+            },
+            "retry": {
+                "n": 0
+            },
+            "monitor": {
+                "n": 0
+            },
+            "error_count": 0,
+            "errors": []
+        },
+        "places_remaining_before": 1,
+        "admitted_before_completion": 32,
+        "completed": 32,
+        "overfill": 31,
+        "next_rejected": true
+    },
+    "final_completions": 2032,
+    "integrity_checks": "passed"
+}
