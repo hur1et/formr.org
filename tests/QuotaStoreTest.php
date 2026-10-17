@@ -13,6 +13,7 @@ require_once __DIR__ . '/../application/Services/QuotaProviderStore.php';
 require_once __DIR__ . '/../application/Services/QuotaRuntime.php';
 require_once __DIR__ . '/../application/Services/QuotaOverview.php';
 require_once __DIR__ . '/../application/Services/QuotaMonitor.php';
+require_once __DIR__ . '/../application/Services/QuotaExport.php';
 
 /** Creates and drops only a randomly named disposable database, never the configured app DB. */
 #[Group('integration')]
@@ -37,7 +38,7 @@ class QuotaStoreTest extends TestCase {
             [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]);
         self::$db->exec('CREATE TABLE survey_runs (id INT UNSIGNED PRIMARY KEY, user_id INT UNSIGNED NOT NULL, name VARCHAR(45) UNIQUE) ENGINE=InnoDB;
             CREATE TABLE survey_run_sessions (id INT UNSIGNED PRIMARY KEY, run_id INT UNSIGNED NOT NULL, testing TINYINT DEFAULT 0,
-                current_unit_session_id INT UNSIGNED NULL, position INT NULL, ended DATETIME NULL) ENGINE=InnoDB;
+                current_unit_session_id INT UNSIGNED NULL, position INT NULL, ended DATETIME NULL, session VARCHAR(64)) ENGINE=InnoDB;
             CREATE TABLE survey_units (id INT UNSIGNED PRIMARY KEY, type VARCHAR(32) NOT NULL) ENGINE=InnoDB;
             CREATE TABLE survey_unit_sessions (id INT UNSIGNED PRIMARY KEY, run_session_id INT UNSIGNED, unit_id INT UNSIGNED,
                 run_unit_id INT UNSIGNED NULL, ended DATETIME NULL, state VARCHAR(32), queued INT DEFAULT 0,
@@ -1164,6 +1165,136 @@ class QuotaStoreTest extends TestCase {
         catch (DomainException $error) { self::assertSame('first',$providers->identity($this->quota,1)); }
         self::assertSame(['wait_user'=>true],(new QuotaRuntime(self::$db))->execute('Complete',1,1,203,101,true));
         $this->assertCounts(0);
+    }
+
+    private function exportedRows(): array {
+        $columns=(new QuotaExport(self::$db))->columns(20,7,'quota_demo_results',
+            ['session_id','study_id','ended','age','sex','education']);
+        return self::$db->query('SELECT '.implode(',',$columns).' FROM quota_demo_results
+            LEFT JOIN survey_unit_sessions ON survey_unit_sessions.id=quota_demo_results.session_id
+            LEFT JOIN survey_run_sessions ON survey_run_sessions.id=survey_unit_sessions.run_session_id
+            ORDER BY quota_demo_results.session_id')->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function testExportAddsNamedQuotaColumnsBeforeItemsWithoutChangingAnswers(): void {
+        $this->seedSources(); $this->admit(); $this->store->complete(1,$this->quota,1,101);
+        $this->store->admit(1,$this->quota,2,fn()=>['demo.age'=>90,'demo.sex'=>'1','demo.education'=>'uni']);
+        self::$db->exec("UPDATE survey_run_sessions SET session='same-panel-code' WHERE id IN (1,2)");
+        $rows=$this->exportedRows();
+        self::assertCount(2,$rows);
+        self::assertSame(['session','session_id','study_id','ended','quota_status','quota_counted',
+            'quota_age_sex_group','quota_education_group','age','sex','education'],array_keys($rows[0]));
+        self::assertSame('admitted',$rows[0]['quota_status']);
+        self::assertSame(1,(int)$rows[0]['quota_counted']);
+        self::assertSame('adult|female',$rows[0]['quota_age_sex_group']);
+        self::assertSame('rejected',$rows[1]['quota_status']);
+        self::assertSame(0,(int)$rows[1]['quota_counted']);
+        self::assertNull($rows[1]['quota_age_sex_group']);
+        self::assertSame([29,90],array_map('intval',array_column($rows,'age')));
+        self::assertSame(['2','1'],array_column($rows,'sex'));
+        self::assertSame(['uni','uni'],array_column($rows,'education'));
+    }
+
+    public function testExportRepeatsSavedRunAssignmentForRepeatedSurveyVisits(): void {
+        $this->seedSources(); $this->admit();
+        self::$db->exec('INSERT INTO survey_unit_sessions (id,run_session_id,unit_id,run_unit_id) VALUES (122,1,20,201);
+            INSERT INTO quota_demo_results VALUES (122,20,NULL,50,"1","uni")');
+        $rows=$this->exportedRows();
+        self::assertCount(3,$rows);
+        self::assertSame('adult|female',$rows[0]['quota_age_sex_group']);
+        self::assertSame('adult|female',$rows[2]['quota_age_sex_group']);
+        self::assertSame(50,(int)$rows[2]['age']);
+        self::assertNull($rows[1]['quota_status']);
+        self::assertSame(0,(int)$rows[1]['quota_counted']);
+    }
+
+    public function testExportNamesComeFromTablesAndResolveHyphenAndAnswerCollisions(): void {
+        $this->seedSources(); $this->admit();
+        self::$db->exec("UPDATE survey_quota_tables SET code='income-party' WHERE code='age_sex';
+            UPDATE survey_quota_tables SET code='income_party' WHERE code='education'");
+        $export=new QuotaExport(self::$db);
+        $book=$export->codebook(20,7,['session_id','quota_status','quota_income_party_group']);
+        $names=array_unique(array_column($book,'column'));
+        self::assertContains('quota_status_2',$names);
+        self::assertContains('quota_income_party_group_2',$names);
+        self::assertContains('quota_income_party_group_3',$names);
+        self::assertNotContains('quota_age_sex_group',$names);
+        $row=array_values(array_filter($book,static fn($r)=>$r['value']==='adult|female'))[0];
+        self::assertSame('income-party',$row['quota_table']);
+        self::assertStringContainsString('age: 18–29',$row['meaning']);
+        self::assertStringContainsString('Female (code 2)',$row['meaning']);
+        self::assertSame($book,$export->codebook(20,7,['session_id','quota_status','quota_income_party_group']));
+    }
+
+    public function testSharedSurveyExportKeepsRunsSeparateEvenWithIdenticalTableCodes(): void {
+        $this->seedSources(); $this->admit();
+        self::$db->exec('UPDATE survey_runs SET user_id=7 WHERE id=2;
+            INSERT INTO survey_run_units VALUES (301,2,20,1,"Shared demography");
+            INSERT INTO survey_unit_sessions (id,run_session_id,unit_id,run_unit_id) VALUES (123,6,20,301);
+            INSERT INTO quota_demo_results VALUES (123,20,NULL,25,"2","uni")');
+        $other=$this->store->create(2,7,self::tables());
+        $this->store->admit(2,$other,6,fn()=>self::answers());
+        $this->store->complete(2,$other,6,106);
+        $rows=$this->exportedRows();
+        self::assertCount(3,$rows);
+        self::assertSame('adult|female',$rows[0]['quota_age_sex_group']);
+        self::assertNull($rows[0]['quota_age_sex_group_2']);
+        self::assertNull($rows[2]['quota_age_sex_group']);
+        self::assertSame('adult|female',$rows[2]['quota_age_sex_group_2']);
+        self::assertSame(0,(int)$rows[0]['quota_counted']);
+        self::assertSame(1,(int)$rows[2]['quota_counted']);
+        $book=(new QuotaExport(self::$db))->codebook(20,7,['session_id','study_id','ended','age','sex','education']);
+        self::assertSame(['study-one','study-two'],array_values(array_unique(array_filter(array_column($book,'run')))));
+    }
+
+    public function testExportDoesNotExposeAnotherRunOwnersQuotaMetadata(): void {
+        $this->seedSources();
+        self::$db->exec('INSERT INTO survey_run_units VALUES (301,2,20,1,"Foreign run");
+            INSERT INTO survey_unit_sessions (id,run_session_id,unit_id,run_unit_id) VALUES (123,6,20,301);
+            INSERT INTO quota_demo_results VALUES (123,20,NULL,25,"2","uni")');
+        $other=$this->store->create(2,8,self::tables());
+        $this->store->admit(2,$other,6,fn()=>self::answers());
+        $rows=$this->exportedRows();
+        self::assertCount(3,$rows);
+        self::assertNull($rows[2]['quota_status']);
+        self::assertNull($rows[2]['quota_counted']);
+        self::assertArrayNotHasKey('quota_age_sex_group_2',$rows[2]);
+        $book=(new QuotaExport(self::$db))->codebook(20,7,['age']);
+        self::assertNotContains('study-two',array_column($book,'run'));
+    }
+
+    public function testExportWithoutActiveQuotaIsUnchanged(): void {
+        $this->seedEditor();
+        $export=new QuotaExport(self::$db);
+        self::assertFalse($export->available(20,7));
+        self::assertSame(['survey_run_sessions.session','`quota_demo_results`.*'],$export->columns(20,7,'quota_demo_results',['age']));
+        self::assertSame([],$export->codebook(20,7,['age']));
+    }
+
+    public function testExportPreservesUnlinkedSurveyBoundary(): void {
+        $this->seedSources(); self::$db->exec('UPDATE survey_studies SET unlinked=1');
+        $export=new QuotaExport(self::$db);
+        self::assertFalse($export->available(20,7));
+        self::assertSame([],$export->codebook(20,7,['age']));
+        self::assertSame(['survey_run_sessions.session','`quota_demo_results`.*'],$export->columns(20,7,'quota_demo_results',['age']));
+    }
+
+    public function testExportRequiresSurveyOwner(): void {
+        $this->seedSources(); $this->expectException(DomainException::class);
+        (new QuotaExport(self::$db))->codebook(20,8,['age']);
+    }
+
+    public function testExportRetainsHistoricRunMappingAfterSurveyUnitRemoval(): void {
+        $this->seedSources(); $this->admit();
+        self::$db->exec('DELETE FROM survey_run_units WHERE id=201');
+        self::assertSame('adult|female',$this->exportedRows()[0]['quota_age_sex_group']);
+    }
+
+    public function testExportCountedIsCompletionEvidenceRatherThanCorrectedGroupTotal(): void {
+        $this->seedSources(); $this->admit(); $this->store->complete(1,$this->quota,1,101);
+        $this->store->adjust(1,$this->quota,'education','uni','field',-1,7,'Exclude from total','exclude');
+        self::assertSame(1,(int)$this->exportedRows()[0]['quota_counted']);
+        self::assertSame(0,$this->store->getCounts(1,$this->quota,'field')['education']['uni']);
     }
 
     public function testMonitorLinkIsOptInStableAndRevocable(): void {

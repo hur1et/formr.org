@@ -90,6 +90,9 @@
                 <p>
                     Under <strong>Provider statistics</strong> on the Quotas page, choose <strong>Create provider link</strong> to share a read-only table. It shows field counts only and loads current figures whenever it is reloaded. Anyone with the link can view it without a formr account. <strong>Revoke provider link</strong> disables the old address; creating another link gives it a new key. The page is available before activation too, with saved groups and zero counts.
                 </p>
+                <p>
+                    Linked survey result downloads include quota fields after the administrative columns and before the survey items. <code>quota_status</code> is the saved admission decision, and <code>quota_counted</code> indicates a recorded completion. Each quota table adds <code>quota_&lt;table_code&gt;_group</code>. Hyphens become underscores; conflicting names receive a numeric suffix without replacing existing answers. Download the separate <strong>quota codebook (CSV)</strong> from Export Results for the actual column names and category meanings. Repeated survey visits use the same run participation's saved decision. Unlinked surveys and surveys without active quotas are unchanged.
+                </p>
             </div>
         </div>
     </div>

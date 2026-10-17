@@ -79,5 +79,6 @@ service, dependency or background worker. It does not change provider callback s
   No console errors/warnings. Screenshot inspected; saving to the output directory was
   denied by the browser tool, so no screenshot file is claimed.
 
-Response export, portable run import/export, production-copy migration rehearsal,
+Survey response export and the separate CSV quota codebook are implemented; see
+QUOTA_EXPORT.md for current test totals. Portable run import/export, production-copy migration rehearsal,
 OpenCPU and provider-approved callback acceptance, pilot and release/rollback remain.

@@ -75,6 +75,7 @@ The local overview is at
 `http://127.0.0.1:8097/admin/run/Quota_Overview_Test/quotas/?cohort=test`.
 Synthetic fixtures are outside the repository. The production VM and AI code are unchanged.
 The revocable provider read-only monitor is now implemented; see QUOTA_MONITOR.md.
-Still pending: response export, portable run
+Survey response downloads and the CSV quota codebook are implemented; see QUOTA_EXPORT.md.
+Still pending: portable run
 import/export, production-copy migration rehearsal, OpenCPU and approved provider
 acceptance, pilot and release/rollback review. This overview is not field release approval.

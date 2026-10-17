@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 ## [Unreleased]
 
 ### Added
+- 2026-10-17: Linked survey result downloads include saved quota status, completion evidence and dynamically named group columns between administrative fields and survey items. All six existing formats use the same column plan; a separate CSV quota codebook explains actual names and groups. Collisions are resolved without overwriting answers. Internal result readers, unlinked surveys and exports without active quotas retain their existing behavior.
 - 2026-10-16: Revocable provider quota statistics at the existing study URL plus `/quotas/`. Owner-created links expose field group aggregates only, load fresh values on reload and reject write methods. Standalone HTML includes overfill/zero-limit handling; the monitor action does not start a participation. Patch 064 adds per-run sharing keys.
 - 2026-10-15: Simplify quota count edits: no explanation field; actor, timestamp and delta are logged automatically. Fulfillment cells use native green styling at 100% and above, preserving actual overfill percentages.
 - 2026-10-15: Researcher Quotas page, always available in the run menu. Native group tables show limits, cohort counts and fulfilment before or after activation. Refresh and whole-page Save; audited count differences preserve concurrent completions, and repeated submissions are deduplicated atomically. Patch 063 stores save receipts. Active run-editor limits reflect overview edits.

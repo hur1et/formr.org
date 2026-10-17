@@ -777,7 +777,7 @@ class SurveyStudy extends Model
         return $results;
     }
 
-    public function getResults($items = null, $filter = null, array $paginate = null, $runId = null, $rstmt = false)
+    public function getResults($items = null, $filter = null, array $paginate = null, $runId = null, $rstmt = false, $includeQuota = false)
     {
         if ($this->resultsTableExists()) {
             ini_set('memory_limit', Config::get('memory_limit.survey_get_results'));
@@ -809,6 +809,10 @@ class SurveyStudy extends Model
                  */
             } else {
                 $columns = array('survey_run_sessions.session', "`{$results_table}`.*");
+                if ($includeQuota) {
+                    $baseColumns=array_keys($this->db->getTableDefinition($results_table,'Field'));
+                    $columns=(new QuotaExport($this->db->pdo()))->columns((int)$this->id,(int)$this->user_id,$results_table,$baseColumns);
+                }
             }
 
             $select = $this->db->select($columns)
@@ -871,6 +875,18 @@ class SurveyStudy extends Model
         } else {
             return array();
         }
+    }
+
+    public function hasQuotaExport(): bool
+    {
+        return !$this->unlinked && (new QuotaExport($this->db->pdo()))->available((int)$this->id,(int)$this->user_id);
+    }
+
+    public function getQuotaExportCodebook(): array
+    {
+        if ($this->unlinked || !$this->resultsTableExists()) { return []; }
+        $baseColumns=array_keys($this->db->getTableDefinition($this->results_table,'Field'));
+        return (new QuotaExport($this->db->pdo()))->codebook((int)$this->id,(int)$this->user_id,$baseColumns);
     }
 
     /**

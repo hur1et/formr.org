@@ -514,7 +514,7 @@ class AdminSurveyController extends AdminController {
 
 
         /* @var $resultsStmt PDOStatement */
-        $resultsStmt = $study->getResults(null, null, null, null, true);
+        $resultsStmt = $study->getResults(null, null, null, null, true, true);
         $this->verifyThereIsExportableData($resultsStmt);
 
         $SPR = new SpreadsheetReader();
@@ -526,6 +526,20 @@ class AdminSurveyController extends AdminController {
         }
     }
     
+    private function exportQuotaCodebookAction() {
+        if ($this->study->hide_results) { return $this->hideResults(); }
+        $rows=$this->study->getQuotaExportCodebook();
+        if (!$rows) { $this->response->notFound(); }
+        $stream=fopen('php://temp','w+');
+        fputcsv($stream,array_keys($rows[0]),',','"','');
+        foreach ($rows as $row) { fputcsv($stream,array_values($row),',','"',''); }
+        rewind($stream); $csv=stream_get_contents($stream); fclose($stream);
+        $this->response->setContentType('text/csv; charset=UTF-8');
+        $this->response->setHeader('Content-Disposition','attachment; filename="'.$this->study->name.'_quota_codebook.csv"');
+        $this->response->setHeader('Cache-Control','no-store, private');
+        return $this->sendResponse($csv);
+    }
+
     private function changeSettings($settings) {
         $errors = false;
 

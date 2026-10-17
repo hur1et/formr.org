@@ -111,6 +111,9 @@
             <div class="modal-body">
                 <div class="list-group col-md-11">
                     <h5>Export as</h5>
+                    <?php if ($study->hasQuotaExport()): ?>
+                        <p><a href="<?= admin_study_url($study->name,'export_quota_codebook') ?>"><i class="fa fa-book"></i> Download quota codebook (CSV)</a></p>
+                    <?php endif; ?>
                     <div class="list-group-item">
                         <h4 class="list-group-item-heading"><a href="<?php echo admin_study_url($study->name, 'export_results?format=csv'); ?>"><i class="fa fa-floppy-o fa-fw"></i> CSV</a></h4>
                         <p class="list-group-item-text">good for big files, problematic to import into German Excel (comma-separated)</p>
