@@ -2,6 +2,7 @@
 // Local fixture with formr's actual module wrapper and styles. No application database.
 // Run: php -S 127.0.0.1:8096 tests/fixtures/quota/editor_preview.php
 $root = dirname(__DIR__, 3);
+require_once $root . '/application/Services/QuotaRules.php';
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $assets = [
     '/quota-editor.js'=>['webroot/assets/common/js/quota-editor.js','text/javascript'],

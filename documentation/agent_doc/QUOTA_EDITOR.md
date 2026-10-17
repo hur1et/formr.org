@@ -5,6 +5,14 @@ have since been connected; see [QUOTA_LIFECYCLE.md](QUOTA_LIFECYCLE.md) for the 
 behavior, test evidence and remaining release requirements. The draft-only descriptions
 below document the earlier milestone, not the current execution path.
 
+Current size boundary (user decision, 2026-10-17): at most **500 groups across all quota
+tables of a run**, including groups with limit zero. Products are counted before any
+cross-product allocation, both in QuotaRules and the editor. An 8 × 7 × 3 table has 168
+groups. The editor reports an excess and retains editable categories/ranges so the user
+can reduce it; invalid changes cannot replace the saved definition. No separate limit
+on dimensions or tables was introduced. Fifteen DOM/editor tests pass, including exactly
+500, rejection at 501, recovery by removing a category and oversized crossed inputs.
+
 ## Scope
 
 Quota and Complete are registered in RunUnitFactory and offered in the run editor.

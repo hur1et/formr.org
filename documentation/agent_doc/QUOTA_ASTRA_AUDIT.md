@@ -192,18 +192,54 @@ wrong/expired current-unit refusal; monitor output allowlist and key revocation.
 No successful unauthorized access was demonstrated in these executed cases. This is not
 a proof that no other authorization flaw exists.
 
-The API/delete fixtures deliberately reproduce the failures described above and return
-success when that old behavior is observed. They are diagnostic reproductions, not tests
-asserting the desired fixed behavior. Convert/add regression assertions when fixing them.
-The fixture scripts run in separate PHP processes and must not be included in the live app.
+At the audited commit the API/delete fixtures deliberately reproduced the old failures.
+The API and configuration-growth fixtures have since been converted to fixed-behavior
+regressions. The old delete diagnostic belongs to commit 0caf2a43; use the new maintenance
+regression below against current code. Fixture scripts run in separate PHP processes and
+must not be included in the live app.
 
 ## Before release
 
-1. Correct A1 and A2 with targeted regression tests, then have their fixes reviewed.
-2. Agree the supported configuration-size boundary for A3 before adding restrictions.
-3. Rehearse migration against a fresh production copy, including actual schema differences,
+1. Finish targeted corrections for A1–A3 (follow-up below), then the user's text review.
+2. Perform the final UI/UX check after the approved texts are applied.
+3. Rehearse and migrate against a fresh production copy, including actual schema differences,
    files, encryption keys and the official OAuth credential changes.
-4. Exercise HTTP/PHP/OpenCPU on an isolated VM copy, with realistic arrival bursts and
+4. After migration, exercise HTTP/PHP/OpenCPU on the VM with isolated synthetic runs,
+   realistic arrival bursts and
    the actual questionnaire; choose acceptable timeouts/response times from that evidence.
-5. Complete the user's text review and HiWi/provider study acceptance, then present a
-   concrete deployment/rollback procedure. No production release is approved by this audit.
+5. HiWi/provider study acceptance follows on the VM, before opening the paid study.
+   The HiWi only gets access through the VM. No field release is approved by this audit.
+
+## Follow-up corrections by the primary agent, 2026-10-17
+
+These are subsequent implementation and regression results, not an independent Astra
+re-review or a new load measurement. Astra's final review remains outstanding after its
+usage limit. The measured latency above has not been optimized or re-certified.
+
+- **A1:** Run deletion locks the run row used by quota activation/statistics-link creation,
+  refuses activated quotas or statistics links before mutations, and owns one PDO
+  transaction for database cleanup. Physical files are removed only after its commit.
+  Unexpected restrictive references roll back database changes and preserve files.
+  Existing outer transactions are refused without rolling them back. Both account-cleanup
+  entry points preflight protected owned runs before their existing cleanup begins.
+  No participant-deletion/reset feature was added. This is not a redesign of every
+  account-cleanup race or inherited DDL path.
+- **A2:** Refused native replacement returns HTTP 409 without inspecting old units as an
+  import result. Successful replacement and count-mismatch paths are also regression
+  checked. The existing mixed Survey import/DDL transaction limitation remains.
+- **A3:** User selected 500 total groups across all tables of a run, including closed
+  groups. PHP and browser count products before expansion; exactly 500 is allowed and
+  501 is rejected. The example 8 × 7 × 3 produces 168. No extra dimension/table cap.
+
+Verification: standard lane **277 tests / 709 assertions**, disposable MariaDB lane
+**138 tests / 540 assertions**, editor **15 tests**. Eleven existing PHPUnit deprecations
+remain. The production frontend build passes with existing bundle-size warnings.
+Maintenance regression uses its own random disposable database and synthetic files;
+it covers active/share-only refusals, unexpected FK rollback, normal deletion, outer
+transaction preservation and both account entry points. Browser check in the actual
+local editor: a draft with 168 + 168 + 112 groups renders; adding the last category would
+produce 504 and shows the 500-group error while retaining the editable category controls.
+Removing that category restores all 448 group rows; native Save then reports Saved.
+The browser console has no errors or warnings. Screenshot: external project output
+`Quotierung-Gruppengrenze.png`.
+No full stress rerun or VM change was made during these corrections.

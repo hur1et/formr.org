@@ -1470,6 +1470,21 @@ class QuotaStoreTest extends TestCase {
         $structure->assertImportTarget(3,7,$units,20);
     }
 
+    public function testFailedRunCleanupPreservesAllResourcesAndAccountCascadesRefuseEarly(): void {
+        $process=proc_open([PHP_BINARY,'-n','-d','extension_dir='.ini_get('extension_dir'),
+            '-d','extension=mbstring','-d','extension=pdo_mysql',__DIR__.'/fixtures/quota/maintenance_regression.php'],
+            [1=>['pipe','w'],2=>['pipe','w']],$pipes);
+        self::assertIsResource($process);
+        $stdout=stream_get_contents($pipes[1]); $stderr=stream_get_contents($pipes[2]);
+        fclose($pipes[1]); fclose($pipes[2]);
+        self::assertSame(0,proc_close($process),$stdout.$stderr);
+        $result=json_decode($stdout,true,512,JSON_THROW_ON_ERROR);
+        self::assertSame([1,3,5],$result['preserved']);
+        self::assertTrue($result['ordinary_deleted']);
+        self::assertTrue($result['account_preserved']);
+        self::assertTrue($result['outer_transaction_preserved']);
+    }
+
     public function testAdmittedParticipantsCanOverfillAfterLimitReduction(): void {
         $this->admit(1);
         $this->admit(2);

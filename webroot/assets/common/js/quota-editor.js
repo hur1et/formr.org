@@ -14,8 +14,25 @@ function integer(value) {
   return Number(text);
 }
 
-export function quotaGroups(dimensions) {
+export function quotaGroupCount(tables, maxGroups = 500) {
+  let total = 0;
+  tables.forEach((table) => {
+    let groups = table.dimensions.length ? 1 : 0;
+    table.dimensions.forEach((dim) => {
+      const size = Object.keys(dim.categories).length;
+      if (size && groups > Math.floor((maxGroups - total) / size)) {
+        throw new Error(`A run supports at most ${maxGroups} quota groups across all tables. Reduce the number of category combinations.`);
+      }
+      groups *= size;
+    });
+    total += groups;
+  });
+  return total;
+}
+
+export function quotaGroups(dimensions, maxGroups = 500) {
   if (!dimensions.length) throw new Error("Select at least one variable per table.");
+  quotaGroupCount([{ dimensions }], maxGroups);
   let groups = [{ code: [], labels: [] }];
   const sources = new Set();
   dimensions.forEach((dim) => {
@@ -43,6 +60,7 @@ export function initQuotaEditor(block) {
   const root = block.querySelector(".quota-editor");
   if (!root) return null;
   const sources = JSON.parse(root.dataset.sources);
+  const groupLimit = Number(root.dataset.maxGroups || 500);
   const hidden = root.querySelector("[name=quota_tables]");
   const error = root.querySelector(".quota-editor-error");
   const saved = JSON.parse(hidden.value);
@@ -52,6 +70,7 @@ export function initQuotaEditor(block) {
   function sync() {
     try {
       if (!tables.length) throw new Error("Add at least one quota table.");
+      quotaGroupCount(tables, groupLimit);
       const output = Object.create(null);
       tables.forEach((table) => {
         if (!/^[A-Za-z0-9_-]{1,64}$/.test(table.code) || Object.hasOwn(output, table.code)) {
@@ -64,7 +83,7 @@ export function initQuotaEditor(block) {
           ? Object.fromEntries(Object.entries(dim.categories).map(([code, range]) => [code, { min: integer(range.min), max: integer(range.max) }]))
           : dim.categories }));
         const limits = Object.create(null);
-        quotaGroups(dimensions).forEach((group) => {
+        quotaGroups(dimensions, groupLimit).forEach((group) => {
           const limit = integer(table.limits[group.code] ?? 0);
           if (limit < 0 || limit > 4294967295) throw new Error("The limit must be a whole number between 0 and 4294967295.");
           limits[group.code] = limit;
@@ -99,6 +118,7 @@ export function initQuotaEditor(block) {
   function renderGroups(table, target) {
     target.replaceChildren();
     try {
+      quotaGroupCount(tables, groupLimit);
       const dimensions = table.dimensions.map((dim) => ({ ...dim, categories: dim.type === "integer"
         ? Object.fromEntries(Object.entries(dim.categories).map(([code, range]) => [code, { min: integer(range.min), max: integer(range.max) }])) : dim.categories }));
       const grid = element("table", null, { class: "table table-bordered table-striped table-condensed" });
@@ -109,7 +129,7 @@ export function initQuotaEditor(block) {
       const tbody = element("tbody", null); grid.append(tbody);
       const meanings = Object.create(null);
       const limits = Object.create(null);
-      quotaGroups(dimensions).forEach((group) => {
+      quotaGroups(dimensions, groupLimit).forEach((group) => {
         const categoryCodes = group.code.split("|");
         const meaning = JSON.stringify(dimensions.map((dim, i) => [dim.source, dim.type, dim.categories[categoryCodes[i]]]));
         meanings[group.code] = meaning;

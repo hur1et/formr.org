@@ -63,16 +63,19 @@ class StructureResource extends BaseResource
         $site->renderAlerts();
 
         try {
-            $this->run->replaceUnits($jsonString);
+            $imported = $this->run->replaceUnits($jsonString);
         } catch (Exception $e) {
             return $this->error(500, 'Import exception: ' . $e->getMessage());
         }
 
+        $alertsText = trim(strip_tags($site->renderAlerts()));
+        if (!is_array($imported) || !$imported) {
+            return $this->error(409, 'Run structure was not replaced.' . ($alertsText ? ' ' . $alertsText : ''));
+        }
         $runUnits = $this->run->getAllUnitIds();
         $actualRunCount = is_array($runUnits) ? count($runUnits) : 0;
-        $alertsText = trim(strip_tags($site->renderAlerts()));
 
-        if ($actualRunCount < $expectedCount) {
+        if ($actualRunCount !== $expectedCount || count($imported) !== $expectedCount) {
             $errorMsg = "Import incomplete: run has $actualRunCount units, expected $expectedCount.";
             if ($alertsText) {
                 $errorMsg .= ' ' . $alertsText;

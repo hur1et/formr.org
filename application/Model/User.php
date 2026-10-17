@@ -509,6 +509,10 @@ class User extends Model {
     }
 
     public function delete() {
+        if ($this->hasProtectedQuotaRuns()) {
+            alert('This account owns a run with activated quotas or a provider statistics link and cannot be deleted.', 'alert-danger');
+            return false;
+        }
         $runs = $this->getRuns();
         foreach ($runs as $row) {
             $run = new Run(null, $row['id']);
@@ -534,6 +538,10 @@ class User extends Model {
             return 'A super administrator cannot be deleted. Set admin level to 1 or below to delete';
         }
 
+        if ($this->hasProtectedQuotaRuns()) {
+            return 'This account owns a run with activated quotas or a provider statistics link and cannot be deleted.';
+        }
+
         $runs = $this->getRuns();
         foreach ($runs as $row) {
             $run = new Run(null, $row['id']);
@@ -551,6 +559,14 @@ class User extends Model {
         $this->delete();
 
         return '';
+    }
+
+    protected function hasProtectedQuotaRuns(): bool {
+        $query = $this->db->prepare('SELECT r.id FROM survey_runs r WHERE r.user_id=? AND
+            (EXISTS (SELECT 1 FROM survey_quotas q WHERE q.run_id=r.id)
+             OR EXISTS (SELECT 1 FROM survey_quota_shares s WHERE s.run_id=r.id)) LIMIT 1');
+        $query->execute([$this->id]);
+        return $query->fetchColumn() !== false;
     }
 
     public function is2FAenabled() {

@@ -7,6 +7,8 @@
  */
 class QuotaRules {
 
+    public const MAX_GROUPS = 500;
+
     private array $tables;
     private array $groups = [];
 
@@ -17,6 +19,7 @@ class QuotaRules {
         if (!$tables) {
             throw new InvalidArgumentException('At least one quota table is required.');
         }
+        self::assertSupportedSize($tables);
         foreach ($tables as $tableCode => $table) {
             self::checkCode($tableCode);
             if (!is_array($table) || empty($table['dimensions']) || !is_array($table['dimensions'])
@@ -68,6 +71,28 @@ class QuotaRules {
             }
         }
         $this->tables = $tables;
+    }
+
+    /** Count products before allocating any cross-table combinations, including closed groups. */
+    private static function assertSupportedSize(array $tables): void {
+        $total = 0;
+        foreach ($tables as $table) {
+            if (!is_array($table) || !is_array($table['dimensions'] ?? null)) { continue; }
+            $groups = 1;
+            foreach ($table['dimensions'] ?? [] as $dimension) {
+                $size = is_array($dimension['categories'] ?? null) ? count($dimension['categories']) : 0;
+                if (!$size) { continue; } // Normal definition validation supplies the specific error.
+                if ($groups > intdiv(self::MAX_GROUPS - $total, $size)) {
+                    throw new InvalidArgumentException('A run supports at most ' . self::MAX_GROUPS
+                        . ' quota groups across all tables. Reduce the number of category combinations.');
+                }
+                $groups *= $size;
+            }
+            $total += $groups;
+            if ($total > self::MAX_GROUPS) {
+                throw new InvalidArgumentException('A run supports at most ' . self::MAX_GROUPS . ' quota groups across all tables.');
+            }
+        }
     }
 
     /** Return the automatic category cross-products, including closed groups with limit zero. */

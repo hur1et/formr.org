@@ -1,12 +1,24 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseHTML } from 'linkedom';
-import { initQuotaEditor, quotaGroups } from '../webroot/assets/common/js/quota-editor.js';
+import { initQuotaEditor, quotaGroups, quotaGroupCount } from '../webroot/assets/common/js/quota-editor.js';
 
 const age = { source:'survey_201.age',run_unit_id:201,item_name:'age',type:'integer',categories:{g1:{min:18,max:29},g2:{min:30,max:39}} };
 const sex = { source:'survey_201.sex',run_unit_id:201,item_name:'sex',type:'category',categories:{c1:'1',c2:'2'} };
 const education = { source:'survey_201.education',run_unit_id:201,item_name:'education',type:'category',categories:{c1:'uni'} };
 const tables = () => ({ age_sex:{dimensions:[structuredClone(age),structuredClone(sex)],limits:{}}, education:{dimensions:[structuredClone(education)],limits:{c1:5}} });
+
+const sizedDimensions = (sizes) => sizes.map((size,i)=>({source:`variable${i}`,type:'category',
+  categories:Object.fromEntries(Array.from({length:size},(_,j)=>[`c${j}`,`value${j}`]))}));
+
+test('8 ages by 7 political orientations by 3 genders creates 168 groups',()=>{
+  assert.equal(quotaGroups(sizedDimensions([8,7,3])).length,168);
+});
+test('500 groups across tables are allowed, 501 are refused before expansion',()=>{
+  assert.equal(quotaGroupCount([{dimensions:sizedDimensions([250])},{dimensions:sizedDimensions([250])}]),500);
+  assert.throws(()=>quotaGroupCount([{dimensions:sizedDimensions([250])},{dimensions:sizedDimensions([251])}]),/at most 500/);
+  assert.throws(()=>quotaGroups(sizedDimensions(Array(12).fill(2))),/at most 500/);
+});
 
 function fixture(saved = tables(), changeSources = () => {}, readonly = false) {
   const { document, window } = parseHTML('<main><div class="quota-editor"><input name="quota_tables" type="hidden"><div class="quota-editor-error" hidden></div><div class="quota-editor-tables"></div><button class="quota-add-table">Add table</button></div></main>');
@@ -23,6 +35,19 @@ function fixture(saved = tables(), changeSources = () => {}, readonly = false) {
   const editor = initQuotaEditor(document.querySelector('main'));
   return { document,root,hidden,editor,window };
 }
+
+test('oversized editor stays editable and can recover below the total group limit',()=>{
+  const ranges=(size)=>Object.fromEntries(Array.from({length:size},(_,i)=>[`g${i}`,{min:i,max:i}]));
+  const saved={one:{dimensions:[{...structuredClone(age),categories:ranges(250)}],limits:{}},
+    two:{dimensions:[{...structuredClone(age),categories:ranges(251)}],limits:{}}};
+  const {root,editor}=fixture(saved);
+  assert.equal(editor.sync(),false);
+  assert.match(root.querySelector('.quota-editor-error').textContent,/at most 500/);
+  assert.equal(root.querySelectorAll('.quota-groups tbody tr').length,0);
+  [...root.querySelectorAll('button')].find(button=>button.textContent==='Remove range').click();
+  assert.equal(editor.sync(),true);
+  assert.equal(root.querySelectorAll('.quota-groups tbody tr').length,500);
+});
 
 test('two dimensions produce four stable cross-product codes', () => {
   assert.deepEqual(quotaGroups([age,sex]).map((group)=>group.code),['g1|c1','g1|c2','g2|c1','g2|c2']);

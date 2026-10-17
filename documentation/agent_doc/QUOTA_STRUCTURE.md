@@ -40,6 +40,13 @@ is **not** a new all-or-nothing transaction. Imported quotas remain inactive on 
 Quota draft and no-provider inserts use owner/type-scoped atomic statements and never
 commit an API caller's outer transaction.
 
+Audit follow-up (2026-10-17): StructureResource now checks the actual replacement result
+before reading the run's unit count. A refused replacement returns HTTP 409, not a false
+success based on surviving old units. Successful imports must match both the returned
+imported-unit count and the actual run count; a mismatch returns an error. This does not
+change the inherited transaction/DDL limitation above. For the initial migration, use a
+reviewed import into a new inactive run rather than a destructive API replacement.
+
 ## Verification
 
 - `QuotaStructureTest`: generic income × party definitions, crossed group limits,

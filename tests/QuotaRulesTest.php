@@ -7,6 +7,38 @@ require_once __DIR__ . '/../application/Services/QuotaRules.php';
 
 class QuotaRulesTest extends TestCase {
 
+    private function sizedTable(array $sizes): array {
+        $dimensions = [];
+        foreach ($sizes as $index=>$size) {
+            $categories = [];
+            for ($i=0;$i<$size;$i++) { $categories['c'.$i] = 'value'.$i; }
+            $dimensions[] = ['source'=>'variable'.$index,'type'=>'category','categories'=>$categories];
+        }
+        return ['dimensions'=>$dimensions,'limits'=>[]];
+    }
+
+    public function testRequestedAgePoliticsGenderExampleGenerates168Groups(): void {
+        self::assertCount(168,(new QuotaRules(['crossed'=>$this->sizedTable([8,7,3])]))->getGroups()['crossed']);
+    }
+
+    public function testExactly500ClosedOrOpenGroupsAcrossTablesAreSupported(): void {
+        $groups = (new QuotaRules(['one'=>$this->sizedTable([10,25]),'two'=>$this->sizedTable([5,50])]))->getGroups();
+        self::assertSame(500,array_sum(array_map('count',$groups)));
+        self::assertSame(0,$groups['one']['c0|c0']['limit']);
+    }
+
+    public function testTotalAcrossTablesCannotExceed500(): void {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('at most 500');
+        new QuotaRules(['one'=>$this->sizedTable([250]),'two'=>$this->sizedTable([251])]);
+    }
+
+    public function testLargeCrossProductIsRefusedBeforeExpansion(): void {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('at most 500');
+        new QuotaRules(['crossed'=>$this->sizedTable(array_fill(0,12,2))]);
+    }
+
     /** Small artificial rule fixture: no participant data or database access. */
     private function tables(): array {
         return [

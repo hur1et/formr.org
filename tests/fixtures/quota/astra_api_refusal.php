@@ -1,5 +1,5 @@
 <?php
-/** Isolated reproduction: real Run refusal and real API response, no app config or sockets. */
+/** Regression of Astra's false-success finding: actual Run refusal and actual API method. */
 class Model { public $db; }
 class AstraGuardDb {
     public function findValue($table,$where,$field) { return $table==='survey_quota_drafts' ? 1 : false; }
@@ -17,7 +17,7 @@ abstract class BaseResource {
 require_once __DIR__.'/../../../application/Model/Run.php';
 require_once __DIR__.'/../../../application/Api/V1/StructureResource.php';
 class AstraExistingRun extends Run {
-    public function getAllUnitIds() { return [1,2,3,4,5]; }
+    public function getAllUnitIds() { throw new RuntimeException('Refused import inspected old units as success evidence.'); }
 }
 class AstraInput {
     public $context; private int $offset=0;
@@ -29,6 +29,11 @@ class AstraInput {
     public function stream_eof(): bool { return $this->offset>=40; }
     public function stream_stat(): array { return []; }
 }
+class AstraSuccessfulRun extends Run {
+    public $actualUnits=1;
+    public function replaceUnits($json_string) { return [10=>'<p>Imported Page</p>']; }
+    public function getAllUnitIds() { return array_fill(0,$this->actualUnits,1); }
+}
 $run=(new ReflectionClass(AstraExistingRun::class))->newInstanceWithoutConstructor();
 $run->id=1; $run->db=new AstraGuardDb();
 $direct=$run->replaceUnits('{"units":[{"type":"Page","position":1}]}');
@@ -39,6 +44,18 @@ stream_wrapper_unregister('php'); stream_wrapper_register('php',AstraInput::clas
 $response=(new ReflectionMethod(StructureResource::class,'importStructure'))->invoke($resource);
 stream_wrapper_restore('php');
 echo json_encode(['native_replace_result'=>$direct,'api_response'=>$response],JSON_PRETTY_PRINT|JSON_THROW_ON_ERROR),"\n";
-if ($response['code']!==200 || $response['payload']['units_imported']!==5) {
-    throw new RuntimeException('The audited false-success behavior changed; review this reproduction.');
+if ($response['code']!==409 || isset($response['payload']) || !str_contains($response['message'],'not replaced')) {
+    throw new RuntimeException('Refused structure replacement must be an error, never a success.');
 }
+$success=(new ReflectionClass(AstraSuccessfulRun::class))->newInstanceWithoutConstructor();
+(new ReflectionProperty(StructureResource::class,'run'))->setValue($resource,$success);
+stream_wrapper_unregister('php'); stream_wrapper_register('php',AstraInput::class);
+try {
+    $successful=(new ReflectionMethod(StructureResource::class,'importStructure'))->invoke($resource);
+    if ($successful['code']!==200 || $successful['payload']['units_imported']!==1) {
+        throw new RuntimeException('A successful replacement must still be reported as success.');
+    }
+    $success->actualUnits=0;
+    $incomplete=(new ReflectionMethod(StructureResource::class,'importStructure'))->invoke($resource);
+    if ($incomplete['code']!==500) { throw new RuntimeException('Unit-count mismatch must be an error.'); }
+} finally { stream_wrapper_restore('php'); }

@@ -6,7 +6,7 @@
 <?php endif; ?>
 <p>Variables within a table are crossed. All tables must pass.
     Only participants who reach Complete are counted.</p>
-<div class="quota-editor" data-readonly="<?= $active ? '1' : '0' ?>" data-sources="<?= h(json_encode($sources, JSON_THROW_ON_ERROR)) ?>">
+<div class="quota-editor" data-max-groups="<?= QuotaRules::MAX_GROUPS ?>" data-readonly="<?= $active ? '1' : '0' ?>" data-sources="<?= h(json_encode($sources, JSON_THROW_ON_ERROR)) ?>">
     <input type="hidden" name="quota_tables" value="<?= h(json_encode((object) $tables, JSON_THROW_ON_ERROR)) ?>">
     <div class="quota-editor-error alert alert-danger" role="alert" hidden></div>
     <div class="quota-editor-tables"></div>

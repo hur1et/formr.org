@@ -217,13 +217,14 @@ class Run extends Model
     }
 
     /**
-     * Cascade-delete the run: files, units (via deleteUnits() — sessions
+     * Cascade-delete an unprotected run: files, units (via deleteUnits() — sessions
      * cascade via the schema's ON DELETE CASCADE FKs from those), then
      * the survey_runs row itself. There's no "delete the run but keep
      * the units" use case — orphaned units have no run to belong to.
      *
-     * Safety is provided by each caller's own confirmation UX, NOT by
-     * this method:
+     * Authorization and confirmation are each caller's responsibility.
+     * This method protects quota references and commits database cleanup
+     * before deleting physical files. Caller confirmation:
      *   - admin "Danger Zone → Delete run" requires typing the run name
      *     to match (templates/admin/run/delete_run.php) and shows the
      *     user-session count before the click.
@@ -233,22 +234,48 @@ class Run extends Model
      */
     public function delete()
     {
+        $pdo = $this->db->pdo();
+        $started = false;
         try {
-            $this->deleteFiles();
+            if ($pdo->inTransaction()) { throw new LogicException('Run deletion must own its transaction.'); }
+            $pdo->beginTransaction();
+            $started = true;
+            // Activation and statistics-link creation take this same lock.
+            $lock = $pdo->prepare('SELECT id FROM survey_runs WHERE id=? FOR UPDATE');
+            $lock->execute([$this->id]);
+            if (!$lock->fetchColumn()) { throw new DomainException('The run no longer exists.'); }
+            $this->assertQuotaDeletionAllowed();
+            $files = $this->db->find('survey_uploaded_files', ['run_id'=>$this->id], ['cols'=>['id','new_file_path']]);
             $this->deleteUnits();
-
+            foreach ($files as $file) { $this->db->delete('survey_uploaded_files', ['id'=>$file['id']]); }
             $this->db->delete('survey_runs', array('id' => $this->id));
+            $pdo->commit();
+            // Irreversible filesystem changes happen only after successful database deletion.
+            foreach ($files as $file) {
+                $path = APPLICATION_ROOT . 'webroot/' . $file['new_file_path'];
+                if (file_exists($path)) { @unlink($path); }
+            }
             alert("<strong>Success.</strong> Successfully deleted run '{$this->name}'.", 'alert-success');
             return true;
         } catch (Exception $e) {
+            if ($started && $pdo->inTransaction()) { $pdo->rollBack(); }
             formr_log_exception($e, __METHOD__);
-            alert(__('Could not delete run %s.', $this->name), 'alert-danger');
+            alert($e instanceof DomainException ? h($e->getMessage()) : __('Could not delete run %s.', $this->name), 'alert-danger');
             return false;
+        }
+    }
+
+    public function assertQuotaDeletionAllowed(): void
+    {
+        if ($this->db->findValue('survey_quotas', ['run_id'=>$this->id], 'id')
+            || $this->db->findValue('survey_quota_shares', ['run_id'=>$this->id], 'run_id')) {
+            throw new DomainException('Runs with activated quotas or a provider statistics link cannot be deleted.');
         }
     }
 
     public function deleteUnits()
     {
+        $this->assertQuotaDeletionAllowed();
         $this->db->delete('survey_run_special_units', array('run_id' => $this->id));
         $this->db->delete('survey_run_units', array('run_id' => $this->id));
     }
