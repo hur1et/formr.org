@@ -2,9 +2,11 @@
 
 <p><label>Provider exit:
     <select class="form-control" name="provider_exit">
-        <option value="" <?= empty($providerExit) ? 'selected' : '' ?>>Normal stop page</option>
-        <option value="screen_out" <?= ($providerExit ?? '') === 'screen_out' ? 'selected' : '' ?>>Screen out through the panel provider (screen_out)</option>
+        <option value="" <?= empty($providerExit) ? 'selected' : '' ?>>Show this page</option>
+        <option value="screen_out" <?= ($providerExit ?? '') === 'screen_out' ? 'selected' : '' ?>>End participation as screen_out</option>
     </select></label></p>
+<p class="help-block">Choose screen_out for participants excluded by your screening or quality checks.
+    With a panel provider, they return through the screen-out link saved in Complete.</p>
 
 <p>
     <label>Feedback text: <br />

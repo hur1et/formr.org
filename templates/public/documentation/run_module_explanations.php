@@ -68,30 +68,46 @@
             <a class="accordion-toggle" data-toggle="collapse" href="#quota">
                 <i class="fa-fw fa fa-users pull-left fa-3x"></i>
                 Quota<br>
-                <small>check whether a participant's groups still have space</small></a>
+                <small>set limits for groups of participants</small></a>
         </div>
         <div id="quota" class="panel-collapse collapse quota">
             <div class="panel-body">
                 <p>
-                    Place Quota after a demographic Survey and before the main questionnaire. Select saved variables from the preceding Survey in the Quota editor; no special item-table syntax is needed. Use categorical answers directly, or define inclusive whole-number ranges such as ages 18–29. The original answers remain unchanged.
+                    Use Quota to limit how many participants you recruit from different groups. Place it after the Survey that collects the answers you need for grouping, and before the main questionnaire. Participants can continue only if there is room for their group in every quota table.
                 </p>
                 <p>
-                    Variables within one quota table are crossed automatically. Add separate tables for independent targets: for example, one table for age × sex and another for education. A participant must match an available group in every table to continue.
+                    Select questions from earlier Surveys in the run. For a categorical question, choose the answers to include. For a number, enter ranges such as 18–29 and 30–39; both ends are included. This groups the answers for your quotas without changing the original responses. Give each table a short code, such as <code>age_sex</code>, to identify it in the overview and exports.
+                </p>
+                <h5>Example: crossed quotas and a separate target</h5>
+                <p>Let's say your run contains:</p>
+                <ul>
+                    <li>Pos. 10: a Survey asking about age, sex and education.</li>
+                    <li>Pos. 20: Quota, with one table combining age and sex, and a second table for education.</li>
+                    <li>Pos. 30: the main questionnaire and any quality checks.</li>
+                    <li>Pos. 40: Complete.</li>
+                </ul>
+                <p>
+                    The variables in one table are crossed automatically. With two age groups and three sex categories, the first table has six groups. You can set a different limit for each. The education table is checked separately: a participant needs room in both their age-by-sex group and their education group. Age, sex and education are examples; you can use other supported questions, such as income or party preference.
                 </p>
                 <p>
-                    Only participants who reach the <a href="#complete" data-toggle="collapse" data-target="#complete">Complete module</a> count towards the limits. Admission does not reserve a place: participants already admitted may finish after a group fills, so counts can exceed the limit. Test participants have separate counts.
+                    A limit of 0 closes a group. If any required answer is missing, falls outside your groups, or belongs to a full group, participation ends through <code>quota_full</code>. With a provider, formr uses the corresponding return link; otherwise it shows an end page. A technical problem instead leaves the participant at Quota so they can reload and try again. A run can have up to 500 groups across all tables, including closed groups.
+                </p>
+                <h5>Counting and changing quotas</h5>
+                <p>
+                    Only participants who reach <a href="#complete" data-toggle="collapse" data-target="#complete">Complete</a> count towards the limits. Passing Quota does not reserve a place. People who have already passed it can still finish after their group is full, so the count can exceed the limit. Test participants have their own counts, but use the same limits as field participants.
                 </p>
                 <p>
-                    Open <strong>Quotas</strong> in the run menu to see group limits, counts and fulfillment. Fulfillment cells turn green at 100% and above. Use <strong>Refresh</strong> for current figures, or edit the values and choose <strong>Save</strong>. Count corrections apply the difference from the displayed count to the latest database count, preserving new completions. Your account, the time and the amount changed are logged automatically; no explanation is required. Saved groups and limits can also be viewed and edited before activation.
+                    Save your settings in Complete before choosing <strong>Save and activate</strong> in Quota. Activation fixes the categories and provider settings. You can still change limits and correct counts under <strong>Quotas</strong> in the run menu. You can also open that page and edit limits before activation.
                 </p>
                 <p>
-                    Full groups, missing answers and answers outside the configured categories use the <code>quota_full</code> exit. A technical error instead keeps the participant at the module for a retry. Save the Complete exit settings before activating Quota. Activation fixes the categories and provider settings.
+                    Use <strong>Refresh</strong> to load current figures; this discards unsaved edits. To change limits or counts, edit them and choose <strong>Save</strong>. A count correction keeps any new completions: if you change 87 to 85 and three people finish before you save, the result is 88. Your correction removes two; the three new completions remain. Changes are recorded with your account and the time. Fulfillment turns green at 100% and above.
+                </p>
+                <h5>Sharing and exporting</h5>
+                <p>
+                    Under <strong>Provider statistics</strong>, choose <strong>Create provider link</strong> to share a table of field counts. Anyone with the link can view it without signing in, but cannot change it. Reloading shows the current counts. <strong>Revoke provider link</strong> disables that address. The page can also show your saved groups before activation, with zero counts.
                 </p>
                 <p>
-                    Under <strong>Provider statistics</strong> on the Quotas page, choose <strong>Create provider link</strong> to share a read-only table. It shows field counts only and loads current figures whenever it is reloaded. Anyone with the link can view it without a formr account. <strong>Revoke provider link</strong> disables the old address; creating another link gives it a new key. The page is available before activation too, with saved groups and zero counts.
-                </p>
-                <p>
-                    Linked survey result downloads include quota fields after the administrative columns and before the survey items. <code>quota_status</code> is the saved admission decision, and <code>quota_counted</code> indicates a recorded completion. Each quota table adds <code>quota_&lt;table_code&gt;_group</code>. Hyphens become underscores; conflicting names receive a numeric suffix without replacing existing answers. Download the separate <strong>quota codebook (CSV)</strong> from Export Results for the actual column names and category meanings. Repeated survey visits use the same run participation's saved decision. Unlinked surveys and surveys without active quotas are unchanged.
+                    Survey downloads for a run with active quotas include <code>quota_status</code> (whether the participant passed Quota), <code>quota_counted</code> (whether their completion was counted), and one group column per quota table. These columns follow the administrative variables and precede the survey items. Download the <strong>quota codebook (CSV)</strong> from Export Results for the actual column names, category codes and ranges. Existing answer columns are preserved.
                 </p>
             </div>
         </div>
@@ -101,21 +117,34 @@
             <a class="accordion-toggle" data-toggle="collapse" href="#complete">
                 <i class="fa-fw fa fa-check-circle pull-left fa-3x"></i>
                 Complete<br>
-                <small>count successful participation and finish the run</small></a>
+                <small>count completed participants and finish the run</small></a>
         </div>
         <div id="complete" class="panel-collapse collapse complete">
             <div class="panel-body">
                 <p>
-                    Place Complete after the main questionnaire and your quality checks. Participants must have passed Quota to complete, and each participation is counted once. Put filters before this module so excluded participants never reach it. An ordinary Stop module does not record quota completion.
+                    Complete ends a successful participation and adds it to the quota counts. Place it after the main questionnaire and any quality checks. Participants must have passed Quota, and each participation is counted once. A normal Stop point does not add a completion to the quota counts.
                 </p>
                 <p>
-                    Choose either a local completion page without a panel provider, or one provider configuration for the run. With a provider, enter the incoming participant-ID parameter, the provider's placeholder and the three return links for <code>complete</code>, <code>quota_full</code> and <code>screen_out</code>. Individual IDs are received on entry and inserted into the matching return link; you do not enter IDs in advance.
+                    Choose whether you use a panel provider. Without one, participants finish on a formr page. With one, paste the provider's three return links and enter the participant ID parameter and placeholder. These settings apply to the whole run, with one provider per run.
+                </p>
+                <h5>Example: returning the provider's participant ID</h5>
+                <p>
+                    Suppose the provider sends someone to your run with <code>?panel_id=abc123</code>. Enter <code>panel_id</code> as the participant ID parameter. formr receives <code>abc123</code> when that person enters; you do not enter individual IDs yourself.
                 </p>
                 <p>
-                    Quota handles the quota-full exit. For other screening exclusions, route participants to a Stop module with its provider exit set to <code>screen_out</code>. Successful participants reach Complete and use the <code>complete</code> return link. Without a provider, these exits show a local end page.
+                    Suppose the provider gives you <code>https://panel.example/complete?m=%PANEL_ID%</code> as a return link. Enter <code>%PANEL_ID%</code> as the placeholder and paste the full link into Complete return link. That participant returns to <code>https://panel.example/complete?m=abc123</code>. This is an example: use the parameter name, exact placeholder and links supplied for your own study.
+                </p>
+                <h5>Which return link is used?</h5>
+                <ul>
+                    <li><code>complete</code>: the participant reaches Complete after your questionnaire and checks.</li>
+                    <li><code>quota_full</code>: Quota finds a full group, a missing answer, or an answer outside your groups.</li>
+                    <li><code>screen_out</code>: your screening or quality checks send the participant to a Stop point with this provider exit selected.</li>
+                </ul>
+                <p>
+                    Put your filters before Complete so excluded participants never reach it. Without a provider, these exits show a formr end page. Test Run shows provider return links as text rather than sending participants to the provider. An ID from the provider is still needed to build these links.
                 </p>
                 <p>
-                    Test participants see provider return links as plain text and are not redirected. Check the full study flow and provider links before field use.
+                    Test the full run, including exclusions and return links, before inviting participants. If processing fails, the participant can reload the page to try again. A completion that has already been counted is not counted a second time.
                 </p>
             </div>
         </div>

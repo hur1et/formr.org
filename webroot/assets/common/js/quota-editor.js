@@ -9,7 +9,7 @@ function element(tag, text, attrs = {}) {
 function integer(value) {
   const text = String(value);
   if (!/^-?(0|[1-9][0-9]*)$/.test(text) || !Number.isSafeInteger(Number(text))) {
-    throw new Error("Enter whole numbers. Decimal values are not rounded.");
+    throw new Error("Enter whole numbers, such as 18 or 29. Decimal values are not rounded.");
   }
   return Number(text);
 }
@@ -31,7 +31,7 @@ export function quotaGroupCount(tables, maxGroups = 500) {
 }
 
 export function quotaGroups(dimensions, maxGroups = 500) {
-  if (!dimensions.length) throw new Error("Select at least one variable per table.");
+  if (!dimensions.length) throw new Error("Choose at least one variable for each table.");
   quotaGroupCount([{ dimensions }], maxGroups);
   let groups = [{ code: [], labels: [] }];
   const sources = new Set();
@@ -39,11 +39,11 @@ export function quotaGroups(dimensions, maxGroups = 500) {
     if (sources.has(dim.source)) throw new Error("Use each variable only once per table.");
     sources.add(dim.source);
     const entries = Object.entries(dim.categories);
-    if (!entries.length) throw new Error("Select answer categories or add numeric ranges.");
+    if (!entries.length) throw new Error("Choose the answer categories to include, or add numeric ranges.");
     if (dim.type === "integer") {
       const ranges = entries.map(([, range]) => ({ min: integer(range.min), max: integer(range.max) }));
       ranges.forEach((range, i) => {
-        if (range.min > range.max) throw new Error("The lower bound must not exceed the upper bound.");
+      if (range.min > range.max) throw new Error("The From value must not be greater than the To value.");
         ranges.slice(i + 1).forEach((other) => {
           if (range.min <= other.max && other.min <= range.max) throw new Error("Numeric ranges must not overlap.");
         });
@@ -74,10 +74,10 @@ export function initQuotaEditor(block) {
       const output = Object.create(null);
       tables.forEach((table) => {
         if (!/^[A-Za-z0-9_-]{1,64}$/.test(table.code) || Object.hasOwn(output, table.code)) {
-          throw new Error("Give each table a unique code using letters, numbers, underscores or hyphens (up to 64 characters).");
+          throw new Error("Use a different code for each table: letters, numbers, underscores or hyphens, up to 64 characters.");
         }
         table.dimensions.forEach((dim) => {
-          if (!sources[dim.source]?.supported) throw new Error("Replace unavailable or unsupported variables before saving.");
+          if (!sources[dim.source]?.supported) throw new Error("Choose another variable before saving. This question is unavailable or unsupported for quotas.");
         });
         const dimensions = table.dimensions.map((dim) => ({ ...dim, categories: dim.type === "integer"
           ? Object.fromEntries(Object.entries(dim.categories).map(([code, range]) => [code, { min: integer(range.min), max: integer(range.max) }]))
@@ -180,7 +180,7 @@ export function initQuotaEditor(block) {
     const source = sources[dim.source];
     if (!source?.supported) view.append(element("p", source?.warning || "This variable is no longer available.", { class: "text-danger" }));
     if (dim.type === "category") {
-      view.append(element("p", "Select categories; leave missing-answer codes unselected.", { class: "help-block" }));
+      view.append(element("p", "Choose the answers to include. Leave missing-answer codes unselected.", { class: "help-block" }));
       const choices = element("div", null, { class: "quota-choices" });
       (source?.choices || []).forEach((choice) => {
         const wrapper = element("div", null, { class: "checkbox" });
@@ -200,7 +200,7 @@ export function initQuotaEditor(block) {
       });
       view.append(choices);
     } else if (dim.type === "integer") {
-      view.append(element("p", "Whole numbers, both bounds included. Original responses are preserved.", { class: "help-block" }));
+      view.append(element("p", "Enter ranges such as 18–29 and 30–39 using whole numbers. Both ends are included.", { class: "help-block" }));
       Object.entries(dim.categories).forEach(([code, range]) => {
         const row = element("div", null, { class: "quota-range" });
         row.append(
@@ -227,19 +227,20 @@ export function initQuotaEditor(block) {
       panel.append(title);
       const body = element("div", null);
       body.append(input("Table code", table.code, (value) => { table.code = value; }));
+      body.append(element("p", "Used in the overview and export column names, e.g. age_sex.", { class: "help-block" }));
       const groupTarget = element("div", null, { class: "quota-groups table-responsive" });
       table.dimensions.forEach((dim) => body.append(dimensionView(table, dim, groupTarget)));
       const add = button("Add variable", () => {
         const source = Object.values(sources).find((candidate) => candidate.supported
           && !table.dimensions.some((dim) => dim.source === candidate.source));
-        if (!source) { fail("No further supported variables are available before this Quota unit."); return; }
+        if (!source) { fail("No other supported variables are available. Use a saved question from an earlier Survey."); return; }
         table.dimensions.push({ source: source.source, run_unit_id: source.run_unit_id, item_name: source.item_name,
           type: source.type, categories: {} });
         render(); changed();
       });
       body.append(add, element("h5", "Quota groups"));
       renderGroups(table, groupTarget);
-      body.append(groupTarget, element("p", "A limit of 0 closes a group to new participants.", { class: "help-block" }));
+      body.append(groupTarget, element("p", "A limit of 0 closes a group. New or changed groups start at 0, so check their limits before activating.", { class: "help-block" }));
       panel.append(body); container.append(panel);
     });
   }

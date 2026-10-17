@@ -19,8 +19,8 @@
 <main>
     <h1><?= h($monitor['name']) ?> — Quotas</h1>
     <p>Completed participants: <?= (int)$monitor['completed'] ?></p>
-    <p class="updated">Updated: <?= h(gmdate('Y-m-d H:i:s')) ?> UTC. Reload this page for current figures.</p>
-    <?php if (!$monitor['groups']): ?><p>No quota groups have been configured.</p><?php endif; ?>
+    <p class="updated">Updated: <?= h(gmdate('Y-m-d H:i:s')) ?> UTC. Reload this page to see the latest counts.</p>
+    <?php if (!$monitor['groups']): ?><p>No quota groups have been set up yet.</p><?php endif; ?>
     <?php foreach ($monitor['groups'] as $table=>$groups): ?>
         <h2><?= h($table) ?></h2>
         <div class="table-responsive">

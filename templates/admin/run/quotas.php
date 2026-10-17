@@ -19,13 +19,16 @@
                             </div>
                             <a class="btn btn-default" href="<?= admin_run_url($run->name,'quotas?cohort='.$cohort) ?>">Refresh</a>
                         </form>
+                        <p class="help-block">Test counts are separate; limits apply to both field and test participants.
+                            Refresh discards unsaved edits.</p>
                         <?php if (!$quota_overview['groups']): ?>
-                            <p class="help-block">Use Quota to set limits for groups of participants.
-                                <a href="<?= admin_run_url($run->name) ?>">Set up quota groups in Edit Run.</a></p>
+                            <p class="help-block">No quota groups yet.
+                                <a href="<?= admin_run_url($run->name) ?>">Add and configure Quota in Edit Run.</a></p>
                         <?php else: ?>
                             <p class="quota-completed">Completed participants: <?= (int)$quota_overview['completed'] ?></p>
                             <?php if ($quota_overview['quota_id']): ?>
-                                <p class="help-block">Count changes are logged automatically with your account, the time and the amount changed.</p>
+                                <p class="help-block">To correct a count, change it and choose Save. New completions since you opened this page are kept.
+                                    Changes are recorded with your account, the time and the amount changed.</p>
                             <?php endif; ?>
                             <form method="post" action="<?= admin_run_url($run->name,'quotas') ?>" class="quota-overview-form">
                                 <input type="hidden" name="cohort" value="<?= h($cohort) ?>">
@@ -78,7 +81,8 @@
                         <?php endif; ?>
                         <hr>
                         <h4>Provider statistics</h4>
-                        <p class="help-block">A read-only page with current field quota counts. Anyone with the link can view it.</p>
+                        <p class="help-block">Share a table of current field counts with your panel provider.
+                            Anyone with the link can view it without signing in, but cannot change it.</p>
                         <?php if ($provider_link!==null): ?>
                             <div class="form-group">
                                 <label for="quota-provider-link">Provider link</label>

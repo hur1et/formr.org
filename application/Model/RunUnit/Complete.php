@@ -47,7 +47,7 @@ class Complete extends RunUnit {
             return $this->quotaRuntime()->execute('Complete',(int) $this->run->id,(int) $unitSession->run_session_id,
                 (int) $unitSession->run_unit_id,(int) $unitSession->id,$unitSession->isExecutedByCron());
         } catch (Throwable $error) {
-            return ['content'=>'<p>Your completion could not be fully processed. Please retry or contact the study team.</p>',
+            return ['content'=>'<p>We could not finish processing your participation. Reload this page to try again, or contact the study team.</p>',
                 'log'=>$this->getLogMessage('quota_error','Complete processing failed (' . get_class($error) . '); retry remains available.')];
         }
     }

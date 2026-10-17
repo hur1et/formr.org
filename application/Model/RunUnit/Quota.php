@@ -59,7 +59,7 @@ class Quota extends RunUnit {
             return $this->quotaRuntime()->execute('Quota',(int) $this->run->id,(int) $unitSession->run_session_id,
                 (int) $unitSession->run_unit_id,(int) $unitSession->id,$unitSession->isExecutedByCron());
         } catch (Throwable $error) {
-            return ['content'=>'<p>This study is temporarily unavailable. Please retry or contact the study team.</p>',
+            return ['content'=>'<p>We could not check your quota group. Reload this page to try again, or contact the study team.</p>',
                 'log'=>$this->getLogMessage('quota_error','Quota processing failed (' . get_class($error) . '); retry remains available.')];
         }
     }
