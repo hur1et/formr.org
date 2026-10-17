@@ -57,7 +57,7 @@ class QuotaDraftUnitTest extends TestCase {
     }
 
     #[DataProvider('unitTypes')]
-    public function testDraftCannotBeSilentlyExportedWithoutItsConfiguration(string $type): void {
+    public function testUnsavedUnitCannotBeExportedWithoutItsConfiguration(string $type): void {
         $unit = (new ReflectionClass($type))->newInstanceWithoutConstructor();
         $this->expectException(DomainException::class);
         $unit->getExportUnit();

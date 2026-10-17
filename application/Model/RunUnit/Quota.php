@@ -49,7 +49,9 @@ class Quota extends RunUnit {
     }
 
     public function getExportUnit() {
-        throw new DomainException('Quota draft import/export is not implemented yet.');
+        if (!$this->run || !$this->run_unit_id) { throw new DomainException('Export requires a saved Quota unit.'); }
+        return parent::getExportUnit() + ['quota_definition'=>(new QuotaStructure($this->db->pdo()))->exportQuota(
+            (int) $this->run->id, (int) $this->run_unit_id, (int) $this->run->user_id)];
     }
 
     public function getUnitSessionOutput(UnitSession $unitSession) {

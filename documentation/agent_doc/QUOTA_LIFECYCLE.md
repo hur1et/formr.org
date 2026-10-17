@@ -106,7 +106,9 @@ also implemented and checked (patch 064; see QUOTA_MONITOR.md). Apply 060-064 fo
 current Quotas page. Survey response downloads and a CSV quota codebook are implemented
 and checked; see QUOTA_EXPORT.md (265 standard tests / 678 assertions, 130 MariaDB
 tests / 509 assertions). Internal/API readers and the long Run Data export are unchanged.
-Still required: portable run import/export;
+Portable run import/export is now implemented; see QUOTA_STRUCTURE.md. Definitions and
+current limits transfer as inactive drafts; panel-provider profiles and counting history do not.
+Still required:
 production-copy migration rehearsal and OpenCPU-backed participant browser runs; provider-approved test links;
 pilot/retry/failure checks and a reviewed release/rollback procedure. Test reset/status
 changes and provider changes after activation need decisions before exposing them.

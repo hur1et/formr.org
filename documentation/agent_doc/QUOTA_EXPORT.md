@@ -81,5 +81,6 @@ rules, returns 404 when no book is available, and stores no provider URLs or sha
 - Console warnings/errors: none. Export dialog screenshot saved outside Git at
   outputs/Quotierung-Exportdialog.png. No study configuration or participant data changed.
 
-Portable quota Run import/export, optional API/long-export coverage decisions,
-production-copy migration, OpenCPU/provider acceptance, pilot and release/rollback remain.
+Portable quota Run import/export is implemented; see QUOTA_STRUCTURE.md. Optional
+API/long-answer-export coverage decisions, production-copy migration, OpenCPU/provider
+acceptance, pilot and release/rollback remain.

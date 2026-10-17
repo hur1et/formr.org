@@ -86,4 +86,5 @@ no saved screenshot artifact is claimed.
 - A production-copy migration rehearsal, complete participant pilot and reviewed
   deployment/rollback procedure remain outstanding.
 - Researcher/provider monitors, correction controls, answer exports and portable run
-  import/export remain separate implementation work.
+  import/export have since been implemented. See QUOTA_OVERVIEW.md, QUOTA_MONITOR.md,
+  QUOTA_EXPORT.md and QUOTA_STRUCTURE.md for the subsequent evidence and remaining limits.

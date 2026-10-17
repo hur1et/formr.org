@@ -36,7 +36,10 @@ class Complete extends RunUnit {
     }
 
     public function getExportUnit() {
-        throw new DomainException('Complete import/export is not implemented yet.');
+        if (!$this->run || !$this->run_unit_id) { throw new DomainException('Export requires a saved Complete unit.'); }
+        $settings = (new QuotaProviderStore($this->db->pdo()))->settings(
+            (int) $this->run->id,(int) $this->run_unit_id,(int) $this->run->user_id);
+        return parent::getExportUnit() + ['provider_mode'=>($settings['provider']['mode'] ?? '') === 'none' ? 'none' : ''];
     }
 
     public function getUnitSessionOutput(UnitSession $unitSession) {

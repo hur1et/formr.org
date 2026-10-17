@@ -14,6 +14,7 @@ require_once __DIR__ . '/../application/Services/QuotaRuntime.php';
 require_once __DIR__ . '/../application/Services/QuotaOverview.php';
 require_once __DIR__ . '/../application/Services/QuotaMonitor.php';
 require_once __DIR__ . '/../application/Services/QuotaExport.php';
+require_once __DIR__ . '/../application/Services/QuotaStructure.php';
 
 /** Creates and drops only a randomly named disposable database, never the configured app DB. */
 #[Group('integration')]
@@ -1371,6 +1372,102 @@ class QuotaStoreTest extends TestCase {
         foreach (['survey_quota_decisions','survey_quota_completions','survey_quota_adjustments','survey_quota_limit_changes','survey_quota_edits'] as $table) {
             self::assertSame(0,(int)self::$db->query('SELECT COUNT(*) FROM '.$table)->fetchColumn());
         }
+    }
+
+    private function seedStructureTarget(): void {
+        self::$db->exec('INSERT INTO survey_runs VALUES (3,7,"imported-study");
+            INSERT INTO survey_run_units VALUES (301,3,20,10,"Imported demography"),
+                (302,3,30,20,"Imported quota"),(303,3,40,40,"Imported complete")');
+    }
+
+    public function testPortableDraftImportsAsInactiveAndActivationStartsWithZeroCounts(): void {
+        $this->seedLifecycle(false,false);
+        $this->seedStructureTarget();
+        $structure = new QuotaStructure(self::$db);
+        $portable = $structure->exportQuota(1,202,7);
+        self::assertTrue($structure->importQuota(3,302,7,$portable,[1=>301]));
+        $structure->importComplete(3,303,7,'none');
+        self::assertNull((new QuotaProviderStore(self::$db))->active(3));
+        $local = (new QuotaEditor(self::$db))->load(3,302,7);
+        self::assertSame(301,$local['age_sex']['dimensions'][0]['run_unit_id']);
+        self::assertSame('survey_301.age',$local['age_sex']['dimensions'][0]['source']);
+        $quota = $this->store->activate(3,7);
+        self::assertSame(['age_sex'=>['adult|female'=>0],'education'=>['uni'=>0]],$this->store->getCounts(3,$quota,'field'));
+        self::assertSame(0,(int) self::$db->query('SELECT COUNT(*) FROM survey_quota_decisions')->fetchColumn());
+    }
+
+    public function testActiveDefinitionExportsCurrentLimitsWithoutHistoryOrProviderProfile(): void {
+        $this->seedLifecycle(true);
+        $this->store->setLimit(1,$this->quota,'education','uni',12,7,'Increase limit','export-limit');
+        $this->store->adjust(1,$this->quota,'education','uni','field',5,7,'Synthetic correction','export-correction');
+        $portable = (new QuotaStructure(self::$db))->exportQuota(1,202,7);
+        self::assertSame(12,$portable['tables']['education']['limits']['uni']);
+        self::assertSame(['dimensions','limits'],array_keys($portable['tables']['education']));
+        self::assertSame(['source','survey_position','item_name','type','categories'],
+            array_keys($portable['tables']['education']['dimensions'][0]));
+        self::assertStringNotContainsString('provider',json_encode($portable));
+        self::assertStringNotContainsString('run_unit_id',json_encode($portable));
+    }
+
+    public function testPartialImportPreservesEditableDefinitionButCannotActivateOrReuseExistingSource(): void {
+        $this->seedLifecycle(false,false);
+        $this->seedStructureTarget();
+        $structure = new QuotaStructure(self::$db);
+        self::assertFalse($structure->importQuota(3,302,7,$structure->exportQuota(1,202,7),[]));
+        $structure->importComplete(3,303,7,'none');
+        $local = (new QuotaEditor(self::$db))->load(3,302,7);
+        self::assertSame(0,$local['education']['dimensions'][0]['run_unit_id']);
+        self::assertSame(['uni'=>1],$local['education']['limits']);
+        try { $this->store->activate(3,7); self::fail('Missing source was activated.'); }
+        catch (InvalidArgumentException $expected) { self::assertNull((new QuotaProviderStore(self::$db))->active(3)); }
+    }
+
+    public function testProviderModeDoesNotImportAnyExitProfileAndPreventsActivationUntilConfigured(): void {
+        $this->seedLifecycle(true,false);
+        $this->seedStructureTarget();
+        $structure = new QuotaStructure(self::$db);
+        $structure->importQuota(3,302,7,$structure->exportQuota(1,202,7),[1=>301]);
+        $structure->importComplete(3,303,7,'provider');
+        self::assertSame(['mode'=>''],(new QuotaProviderStore(self::$db))->settings(3,303,7)['provider']);
+        try { $this->store->activate(3,7); self::fail('Missing provider settings were activated.'); }
+        catch (DomainException $expected) { self::assertNull((new QuotaProviderStore(self::$db))->active(3)); }
+    }
+
+    public function testStructureImportCannotWriteForAnotherOwnerOrCommitAnOuterTransaction(): void {
+        $this->seedLifecycle(false,false);
+        $this->seedStructureTarget();
+        $structure = new QuotaStructure(self::$db);
+        $portable = $structure->exportQuota(1,202,7);
+        try { $structure->importQuota(3,302,8,$portable,[1=>301]); self::fail('Foreign owner imported quota.'); }
+        catch (DomainException $expected) { self::assertSame([], (new QuotaEditor(self::$db))->load(3,302,7)); }
+        self::$db->beginTransaction();
+        try {
+            $structure->importQuota(3,302,7,$portable,[1=>301]);
+            $structure->importComplete(3,303,7,'none');
+            self::assertTrue(self::$db->inTransaction());
+        } finally { self::$db->rollBack(); }
+        self::assertSame([], (new QuotaEditor(self::$db))->load(3,302,7));
+        self::assertSame(['mode'=>''],(new QuotaProviderStore(self::$db))->settings(3,303,7)['provider']);
+    }
+
+    public function testStructurePreflightRejectsForeignOwnerAndAnAlreadyConfiguredRun(): void {
+        $this->seedLifecycle();
+        $structure = new QuotaStructure(self::$db);
+        $units = [(object)['type'=>'Quota']];
+        foreach ([[1,8],[1,7]] as [$run,$actor]) {
+            try { $structure->assertImportTarget($run,$actor,$units); self::fail('Invalid target accepted.'); }
+            catch (DomainException $expected) { self::assertNotSame('',$expected->getMessage()); }
+        }
+        self::assertNotNull((new QuotaProviderStore(self::$db))->active(1));
+    }
+
+    public function testStructureAppendPreflightCannotResolveAnOverlappingExistingSurvey(): void {
+        self::$db->exec('INSERT INTO survey_runs VALUES (3,7,"append-target");
+            INSERT INTO survey_run_units VALUES (301,3,11,10,"Existing survey")');
+        $structure = new QuotaStructure(self::$db);
+        $units = [(object)['type'=>'Survey','position'=>-10],(object)['type'=>'Quota','position'=>20]];
+        $this->expectException(InvalidArgumentException::class);
+        $structure->assertImportTarget(3,7,$units,20);
     }
 
     public function testAdmittedParticipantsCanOverfillAfterLimitReduction(): void {

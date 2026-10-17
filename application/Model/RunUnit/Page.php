@@ -26,10 +26,13 @@ class Page extends RunUnit {
     }
 
     public function create($options = []) {
-        if (!in_array($options['provider_exit'] ?? $this->provider_exit, ['', 'screen_out'], true)) {
+        $providerExit = $options['provider_exit'] ?? $this->provider_exit ?? '';
+        if (!in_array($providerExit, ['', 'screen_out'], true)) {
             throw new InvalidArgumentException('Unknown Page provider exit.');
         }
         parent::create($options);
+        // Model::assignProperties normalizes an exported empty string to null.
+        $this->provider_exit = $providerExit;
 
         $parsedown = new ParsedownExtra();
         $parsedown->setBreaksEnabled(true);

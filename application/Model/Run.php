@@ -1262,6 +1262,13 @@ class Run extends Model
         $SPR = new SpreadsheetReader();
         // Save run units
         foreach ($units as $i => &$unit) {
+            if (in_array($unit->type, ['Quota','Complete'], true)) {
+                // Both the browser exporter and API use the owner's saved definition, never form fields.
+                $row = $this->db->findRow('survey_run_units', ['id'=>(int) ($unit->run_unit_id ?? 0), 'run_id'=>$this->id]);
+                if (!$row) { throw new DomainException('Export requires a Quota or Complete unit from this run.'); }
+                $saved = RunUnitFactory::make($this, ['id'=>$row['unit_id'], 'run_unit_id'=>$row['id'], 'type'=>$unit->type]);
+                $unit = (object) $saved->getExportUnit();
+            }
             if ($inc_survey && $unit->type === 'Survey') {
                 $survey = SurveyStudy::loadById($unit->unit_id);
                 $unit->survey_data = $SPR->exportItemTableJSON($survey, true);
@@ -1311,6 +1318,7 @@ class Run extends Model
             $unit = RunUnitFactory::make($this, $u);
             $ex_unit = $unit->getExportUnit();
             $ex_unit['unit_id'] = $unit->id;
+            $ex_unit['run_unit_id'] = $unit->run_unit_id;
             $units[] = (object) $ex_unit;
         }
         $export = $this->export($this->name, $units, true);
@@ -1349,7 +1357,15 @@ class Run extends Model
         }
 
         $units = (array) $json->units;
+        try {
+            $units = QuotaStructure::prepareImport($units);
+            (new QuotaStructure($this->db->pdo()))->assertImportTarget((int) $this->id,(int) $this->user_id,$units,(int) $start_position);
+        } catch (InvalidArgumentException | DomainException $error) {
+            alert(h($error->getMessage()), 'alert-danger');
+            return false;
+        }
         $createdUnits = [];
+        $importedSurveys = $importedQuotaUnits = [];
 
         foreach ($units as $unitData) {
             // Cast to object to be safe, though json_decode usually returns objects
@@ -1367,6 +1383,7 @@ class Run extends Model
             }
 
             // Calculate new absolute position
+            $exportedPosition = (int) $unit->position;
             $unit->position = $start_position + (int)$unit->position;
 
             $options = [];
@@ -1444,15 +1461,45 @@ class Run extends Model
             $unitVars = (array)$unit;
             unset($unitVars['user_id']);
             $options = array_merge($options, $unitVars);
+            if (in_array($unit->type, ['Quota','Complete'], true)) {
+                // Only content needed to create a fresh, inactive unit reaches the model.
+                $options = array_intersect_key($options, array_flip(['type','position','description']));
+            }
 
             $unitObj = RunUnitFactory::make($this, $options);
 
             if ($unitObj) {
                 $unitObj->create($options);
+                if ($unit->type === 'Survey') {
+                    // createFromData creates its own Survey instance; resolve the actual new run-unit link.
+                    $row = $this->db->findRow('survey_run_units', ['run_id'=>$this->id,'position'=>$unit->position]);
+                    if ($row && $this->db->findValue('survey_units',['id'=>$row['unit_id']],'type') === 'Survey') {
+                        $importedSurveys[$exportedPosition] = (int) $row['id'];
+                        $unitObj = RunUnitFactory::make($this, ['id'=>$row['unit_id'],'run_unit_id'=>$row['id'],'type'=>'Survey']);
+                    }
+                }
+                if (in_array($unit->type, ['Quota','Complete'], true)) {
+                    $importedQuotaUnits[] = [$unitObj,$unit];
+                }
                 if ($unitObj->valid) {
                     $createdUnits[$unitObj->position] = $unitObj->displayForRun(Site::getInstance()->renderAlerts());
                 }
             }
+        }
+
+        $structure = new QuotaStructure($this->db->pdo());
+        foreach ($importedQuotaUnits as [$object,$data]) {
+            if ($data->type === 'Quota') {
+                $ready = $structure->importQuota((int) $this->id,(int) $object->run_unit_id,
+                    (int) $this->user_id,$data->quota_definition,$importedSurveys);
+                if (!$ready) { alert('Quota draft imported. Select supported variables from preceding surveys before activation.', 'alert-warning'); }
+            } else {
+                $structure->importComplete((int) $this->id,(int) $object->run_unit_id,(int) $this->user_id,$data->provider_mode);
+            }
+            $createdUnits[$object->position] = $object->displayForRun(Site::getInstance()->renderAlerts());
+        }
+        if ($importedQuotaUnits) {
+            alert('Quotas were imported as inactive drafts. Review variables and Complete settings before activation. Provider profiles are excluded.', 'alert-info');
         }
 
         // 7. Import Settings if present
@@ -1471,6 +1518,13 @@ class Run extends Model
      */
     public function replaceUnits($json_string)
     {
+        // Replacing links cannot safely replace an existing immutable quota lifecycle or its draft.
+        $quota = $this->db->findValue('survey_quota_drafts',['run_id'=>$this->id],'run_id');
+        $active = $this->db->findValue('survey_quotas',['run_id'=>$this->id],'run_id');
+        if ($quota || $active) {
+            alert('Structure replacement is unavailable for a run with saved quotas. Import into a new run.', 'alert-danger');
+            return false;
+        }
         $this->db->beginTransaction();
 
         try {

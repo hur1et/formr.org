@@ -36,7 +36,7 @@ creation timestamp. The key is stored server-side so the owner can copy the exis
 URL on later visits. It grants aggregate viewing only; treat URLs as access links and
 avoid logging or exporting them. Existing web-server access logs may contain query
 strings; review their access/retention before deployment. Run import/export must not
-copy keys (portable quota import/export is still pending).
+copy keys; the portable implementation excludes them (QUOTA_STRUCTURE.md).
 
 Reading validates the key against that run and calls the same `QuotaOverview` field
 reader as the researcher page. Its output is reduced to name, completed total and group
@@ -80,5 +80,5 @@ service, dependency or background worker. It does not change provider callback s
   denied by the browser tool, so no screenshot file is claimed.
 
 Survey response export and the separate CSV quota codebook are implemented; see
-QUOTA_EXPORT.md for current test totals. Portable run import/export, production-copy migration rehearsal,
+QUOTA_EXPORT.md. Portable run import/export is implemented (QUOTA_STRUCTURE.md). Production-copy migration rehearsal,
 OpenCPU and provider-approved callback acceptance, pilot and release/rollback remain.

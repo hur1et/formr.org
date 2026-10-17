@@ -41,12 +41,13 @@ blocks draft mutation. Invalid changes leave the previous saved draft intact.
 
 The AJAX save path returns validation failures without replacing the user's form.
 The editor plugs into the existing run-unit save/re-render code via one hidden JSON
-field. No spreadsheet syntax is introduced. Complete currently has an explanatory
-panel only; provider settings and booking are not exposed as working controls.
+field. No spreadsheet syntax is introduced. Complete now exposes provider settings
+and explicit completion; see QUOTA_LIFECYCLE.md.
 
-Draft import/export is explicitly rejected: stored run-unit IDs are local identities
-and cannot yet be copied into another run safely. Portability must be implemented
-before final release rather than silently exporting an incomplete quota definition.
+Draft and active-definition import/export are now portable: see QUOTA_STRUCTURE.md.
+Source occurrences are remapped to newly imported run units; every imported quota starts
+inactive. Missing sources remain editable and prevent activation. Provider profiles,
+counts, history and statistics keys are excluded; explicit no-provider mode is retained.
 No new participant deletion workflow is introduced.
 
 ## Verification
