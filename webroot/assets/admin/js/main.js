@@ -26,6 +26,11 @@ import '../../common/js/main.js';
 import '../../common/js/run_users.js';
 import '../../common/js/run.js';
 import '../../common/js/run_settings.js';
+import { initQuotaOverviewForm } from '../../common/js/quota-overview.js';
+
+$(function () {
+    document.querySelectorAll('.quota-overview-form').forEach(initQuotaOverviewForm);
+});
 
 // Admin
 import '../css/AdminLTE.css';

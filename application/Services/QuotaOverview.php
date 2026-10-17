@@ -83,6 +83,19 @@ class QuotaOverview {
         } catch (Throwable $error) { if ($this->pdo->inTransaction()) { $this->pdo->rollBack(); } throw $error; }
     }
 
+    /** Decode the compact form payload; normal row and ledger validation still applies. */
+    public static function decodeRows($json): array {
+        if (!is_string($json) || $json === '') {
+            throw new InvalidArgumentException('Quota changes could not be read. Reload this page and try again.');
+        }
+        try { $rows=json_decode($json,true,512,JSON_THROW_ON_ERROR); }
+        catch (JsonException $error) {
+            throw new InvalidArgumentException('Quota changes could not be read. Reload this page and try again.',0,$error);
+        }
+        if (!is_array($rows) || !$rows) { throw new InvalidArgumentException('No quota groups submitted.'); }
+        return $rows;
+    }
+
     public static function parseRows(array $input): array {
         if (!$input) { throw new InvalidArgumentException('No quota groups submitted.'); }
         $rows=[];

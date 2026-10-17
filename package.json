@@ -8,7 +8,7 @@
         "Cyril Tata <cyril.tata@gmail.com>"
     ],
     "scripts": {
-        "test:quota-editor": "node --experimental-default-type=module --test tests/quota-editor.test.mjs",
+        "test:quota-editor": "node --experimental-default-type=module --test tests/quota-editor.test.mjs tests/quota-overview.test.mjs",
         "build:copy": "node build-scripts/copy.js",
         "build:css": "node build-scripts/css.js",
         "build:js": "node build-scripts/js.js",

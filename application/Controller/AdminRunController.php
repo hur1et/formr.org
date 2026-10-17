@@ -517,10 +517,10 @@ class AdminRunController extends AdminController
             $posted['definition_hash']=$this->request->str('definition_hash');
             $posted['operation_key']=$this->request->str('operation_key');
             try {
-                if (!is_array($this->request->getParam('rows'))) { throw new InvalidArgumentException('Invalid quota groups.'); }
+                $posted['rows']=QuotaOverview::decodeRows($this->request->getParam('rows_json'));
                 $overview->save((int)$this->run->id,(int)$this->user->id,$cohort,
                     $this->request->int('quota_id'),$this->request->str('definition_hash'),
-                    $this->request->getParam('rows',[]),$this->request->str('operation_key'));
+                    $posted['rows'],$this->request->str('operation_key'));
                 alert('Quotas saved.','alert-success');
                 $this->request->redirect(admin_run_url($this->run->name,'quotas?cohort='.$cohort));
             } catch (InvalidArgumentException | DomainException $error) {

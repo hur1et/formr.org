@@ -51,6 +51,39 @@ validation. Native number fields triggered the existing Webshims shadow controls
 browser testing and could submit an older value immediately after editing. No custom
 shadow-input synchronization or automatic rounding was added.
 
+## Compact submission follow-up
+
+The user selected compact submission after the usability review found that four named
+inputs per group plus page metadata exceeded PHP's default max_input_vars=1000.
+500 groups previously produced 2,004 form variables, truncated to 249 complete groups
+under that default. The existing full-group check rejected the request without saving.
+
+The form now sends five named fields: cohort, quota_id, definition_hash, operation_key,
+and rows_json. The 2,000 displayed/baseline group values use data attributes instead of
+individual POST names. On native submit, the admin bundle serializes their current
+strings to one JSON value; it never converts them to JavaScript numbers. Table/group
+maps have null prototypes. Save is enabled after initialization, with a no-JavaScript
+message if scripting is disabled. The page still uses the same native POST and redirect.
+
+The controller decodes that value and retains submitted rows for validation errors.
+QuotaOverview and QuotaStore still validate all expected groups, ownership, exact
+integers, baseline/conflict rules, correction deltas and retry receipts. Broken/missing
+JSON is refused explicitly. Old cached forms receive a reload error instead of falling
+back to potentially truncated legacy input. No migration, new counter or PHP setting.
+
+Verification: **289 standard tests / 724 assertions**, **139 disposable MariaDB tests /
+545 assertions**, **18 editor/overview JavaScript tests**. Eleven existing PHPUnit
+deprecations remain; production build passes with existing size warnings. The new
+database test saves 500 groups, retries the same correction without double counting,
+and verifies an incomplete subsequent request makes no changes.
+
+Actual local browser: synthetic `Quota_Compact_e5a488`, two tables of 250 groups,
+max_input_vars=1000 in the local PHP configuration. The page has 500 rows but only five
+named form fields. Native Save records a count correction in first/g1 and a limit change
+in second/g250; a reload preserves both. No browser console warnings/errors. Screenshot
+is external project output `Quotierung-500-Gruppen-Speicherung.png`. No VM test or full
+load rerun was performed. Other usability findings remain proposals for user discussion.
+
 ## Verification
 
 - Standard unit suite: user-run normal PowerShell, **253 tests / 617 assertions**,

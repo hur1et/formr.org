@@ -821,6 +821,40 @@ class QuotaStoreTest extends TestCase {
         $overview->save(1,7,'field',0,$snapshot['definition_hash'],$rows,'old-meaning');
     }
 
+    public function testCompact500GroupSaveAndIncompleteRetryPreserveLedgerIntegrity(): void {
+        $categories=[];
+        for ($i=1;$i<=500;$i++) { $categories['g'.$i]=(string)$i; }
+        $tables=['generic'=>['dimensions'=>[['source'=>'generic.value','item_name'=>'value',
+            'type'=>'category','categories'=>$categories]],'limits'=>[]]];
+        $quota=$this->store->create(2,8,$tables);
+        $snapshot=$this->store->overview(2,$quota,'field',8);
+        $rows=[];
+        foreach ($categories as $group=>$value) {
+            $rows['generic'][$group]=['limit'=>'0','base_limit'=>'0','count'=>'0','base_count'=>'0'];
+        }
+        $rows['generic']['g1']['count']='2';
+        $rows['generic']['g500']['limit']='11';
+        parse_str(http_build_query(['rows_json'=>json_encode($rows,JSON_THROW_ON_ERROR)]),$posted);
+        $decoded=QuotaOverview::decodeRows($posted['rows_json']);
+        $overview=new QuotaOverview(self::$db);
+        $hash=QuotaStore::definitionHash($snapshot['tables']);
+        $overview->save(2,8,'field',$quota,$hash,$decoded,'compact-500');
+        $overview->save(2,8,'field',$quota,$hash,$decoded,'compact-500');
+        $saved=$this->store->overview(2,$quota,'field',8);
+        self::assertCount(500,$saved['counts']['generic']);
+        self::assertSame(2,$saved['counts']['generic']['g1']);
+        self::assertSame(11,$saved['tables']['generic']['limits']['g500']);
+        unset($decoded['generic']['g500']);
+        $decoded['generic']['g1']['count']='9';
+        try {
+            $overview->save(2,8,'field',$quota,QuotaStore::definitionHash($saved['tables']),$decoded,'incomplete-500');
+            self::fail('An incomplete group set must not be saved.');
+        } catch (InvalidArgumentException $expected) {
+            self::assertStringContainsString('groups',$expected->getMessage());
+        }
+        self::assertSame($saved,$this->store->overview(2,$quota,'field',8));
+    }
+
     public function testOverviewRejectsIncompleteGroupSubmission(): void {
         $rows=$this->overviewRows(); unset($rows['education']);
         $this->expectException(InvalidArgumentException::class);
