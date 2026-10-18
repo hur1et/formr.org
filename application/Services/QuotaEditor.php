@@ -74,7 +74,7 @@ class QuotaEditor {
                 throw new DomainException('Quota editor requires the run owner.');
             }
             if ($this->query('SELECT id FROM survey_quotas WHERE run_id=?', [$runId])->fetch()) {
-                throw new DomainException('An existing counting definition cannot be edited as a draft.');
+                throw new DomainException('Quotas are active. Tables, variables and categories cannot be changed. Change limits and counts under Quotas in the run menu.');
             }
             $existing = $this->query('SELECT run_unit_id FROM survey_quota_drafts WHERE run_id=?', [$runId])->fetchColumn();
             if ($existing !== false && (int) $existing !== $runUnitId) {

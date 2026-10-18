@@ -966,8 +966,20 @@ class QuotaStoreTest extends TestCase {
 
     public function testExistingCountingDefinitionCannotBeChangedByDraftSave(): void {
         $this->seedSources();
-        $this->expectException(DomainException::class);
-        (new QuotaEditor(self::$db))->save(1,202,7,self::tables());
+        $editor = new QuotaEditor(self::$db);
+        $before = $this->store->overview(1,$this->quota,'field',7);
+        $changed = self::tables();
+        $changed['age_sex']['dimensions'][0]['categories']['adult']['min'] = 19;
+        $changed['education']['limits']['uni'] = 999;
+        try {
+            $editor->save(1,202,7,$changed);
+            self::fail('Activated definitions must reject draft edits.');
+        } catch (DomainException $error) {
+            self::assertStringContainsString('Quotas are active.', $error->getMessage());
+            self::assertStringContainsString('limits and counts', $error->getMessage());
+        }
+        self::assertSame($before, $this->store->overview(1,$this->quota,'field',7));
+        self::assertFalse(self::$db->inTransaction());
     }
 
     public function testUnsupportedVariableRemainsVisibleWithWarning(): void {

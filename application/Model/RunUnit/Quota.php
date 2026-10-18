@@ -44,6 +44,7 @@ class Quota extends RunUnit {
         return $this->runDialog(Template::get($this->getTemplatePath(), [
             'prepend' => $prepend, 'tables' => $editor->load($runId, $unitId, $actorId),
             'sources' => $editor->sources($runId, $unitId, $actorId),
+            'overviewUrl' => admin_run_url($this->run->name, 'quotas'),
             'active' => (new QuotaProviderStore($this->db->pdo()))->active($runId) !== null,
         ]));
     }

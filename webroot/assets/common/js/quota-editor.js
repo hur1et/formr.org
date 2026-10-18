@@ -9,7 +9,7 @@ function element(tag, text, attrs = {}) {
 function integer(value) {
   const text = String(value);
   if (!/^-?(0|[1-9][0-9]*)$/.test(text) || !Number.isSafeInteger(Number(text))) {
-    throw new Error("Enter whole numbers, such as 18 or 29. Decimal values are not rounded.");
+    throw new Error("Enter whole numbers. Decimal values are not rounded.");
   }
   return Number(text);
 }
@@ -200,7 +200,7 @@ export function initQuotaEditor(block) {
       });
       view.append(choices);
     } else if (dim.type === "integer") {
-      view.append(element("p", "Enter ranges such as 18–29 and 30–39 using whole numbers. Both ends are included.", { class: "help-block" }));
+      view.append(element("p", "Use whole numbers for both range limits. Both ends are included.", { class: "help-block" }));
       Object.entries(dim.categories).forEach(([code, range]) => {
         const row = element("div", null, { class: "quota-range" });
         row.append(
@@ -227,7 +227,7 @@ export function initQuotaEditor(block) {
       panel.append(title);
       const body = element("div", null);
       body.append(input("Table code", table.code, (value) => { table.code = value; }));
-      body.append(element("p", "Used in the overview and export column names, e.g. age_sex.", { class: "help-block" }));
+      body.append(element("p", "Used in the overview and export column names.", { class: "help-block" }));
       const groupTarget = element("div", null, { class: "quota-groups table-responsive" });
       table.dimensions.forEach((dim) => body.append(dimensionView(table, dim, groupTarget)));
       const add = button("Add variable", () => {

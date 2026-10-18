@@ -921,6 +921,8 @@ import {
       ".import_run_units, .run_unit_description, .position, .remove_unit_from_run, .reorder_units, .unit_save, .form-control, select, .from_days, .add_run_unit"
     );
     $elements.each(function (i, elm) {
+      // Unlocking the run must not unlock an activated quota definition.
+      if (elm.closest('.quota-editor[data-readonly="1"], .quota-provider[disabled]')) return;
       if (on) {
         $("#run-unit-choices").hide();
         if (elm.onclick) {
