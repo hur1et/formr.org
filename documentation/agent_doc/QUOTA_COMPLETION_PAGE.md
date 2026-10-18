@@ -81,3 +81,12 @@ Ace editors wrap at their actual width; other modules keep their existing sizing
 Browser checks at 375/768/1440 confirm editor/container widths match, with viewport
 restored afterwards. PHP lint and frontend build pass (existing size warnings).
 No suite rerun for this layout-only change. Screenshot: `outputs/Complete-editor-full-width.png`.
+
+Help follow-up: Module explanations now end with Shuffle → Complete → Stop Point.
+The paired opening paragraphs distinguish successful quota completion (with or without
+a provider), normal non-quota endings and screening/quality exclusions. Both explain
+feedback support and the effect of a Stop before Complete. Complete's longer section
+separates feedback/timing from provider setup; Quota's activation text now names which
+settings are locked. Browser checked in the native Run editor: one of each panel,
+Complete directly before Stop, both expand and show the revised text. PHP lint passes;
+no suite rerun for copy/reordering. Screenshot: `outputs/Module-explanations-Complete-Stop.png`.

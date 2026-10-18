@@ -97,7 +97,7 @@
                     Only participants who reach <a href="#complete" data-toggle="collapse" data-target="#complete">Complete</a> count towards the limits. Passing Quota does not reserve a place. People who have already passed it can still finish after their group is full, so the count can exceed the limit. Test participants have their own counts, but use the same limits as field participants.
                 </p>
                 <p>
-                    Save your quota tables, then choose <strong>Activate quotas and completion</strong> in Complete. This activates both modules and locks their configuration. A panel provider is optional. You can still change limits and correct counts under <strong>Quotas</strong> in the run menu, including before activation. Before changing Publicness to allow participants, formr checks that both modules are present, in order and activated. Any missing setup is explained to you in the editor.
+                    Save your quota tables, then choose <strong>Activate quotas and completion</strong> in Complete. This activates both modules and locks the quota definitions and provider settings. Completion text and redirect timing remain editable. A panel provider is optional. You can still change limits and correct counts under <strong>Quotas</strong> in the run menu, including before activation. Before changing Publicness to allow participants, formr checks that both modules are present, in order and activated. Any missing setup is explained to you in the editor.
                 </p>
                 <p>
                     To edit an active configuration, choose <strong>Reopen quota configuration</strong> in Complete and confirm the warning. Current rules stay in use while you edit. Save Quota and activate again in Complete to apply your changes. Matching table and group codes keep their counts, including previously used codes; new codes start at zero. Changing a range or variable does not reclassify earlier participants. Review and correct counts yourself. Removed groups remain in the stored history and export codebook. Changing provider settings can also affect participants already in the study.
@@ -111,43 +111,6 @@
                 </p>
                 <p>
                     Survey downloads for a run with active quotas include <code>quota_status</code> (whether the participant passed Quota), <code>quota_counted</code> (whether their completion was counted), and one group column per quota table. These columns follow the administrative variables and precede the survey items. In the run's <strong>Logs</strong>, choose <strong>Download quota codebook (CSV)</strong> for its column names, category codes and ranges. A survey used in several runs also offers <strong>Download quota codebook for all runs (CSV)</strong> under Export Results. Existing answer columns are preserved.
-                </p>
-            </div>
-        </div>
-    </div>
-    <div class="panel panel-default">
-        <div class="panel-heading">
-            <a class="accordion-toggle" data-toggle="collapse" href="#complete">
-                <i class="fa-fw fa fa-check-circle pull-left fa-3x"></i>
-                Complete<br>
-                <small>count completed participants and finish the run</small></a>
-        </div>
-        <div id="complete" class="panel-collapse collapse complete">
-            <div class="panel-body">
-                <p>
-                    Complete ends a successful participation and adds it to the quota counts. Place it after the main questionnaire and any quality checks. Participants must have passed Quota, and each participation is counted once. A normal Stop point does not add a completion to the quota counts. Complete can display a feedback or debriefing text, using Markdown as in Stop Point. With a panel provider, it shows an individual return link and redirects automatically after 10 seconds by default. Edit the delay to allow time for longer texts. Without a provider, the completion page stays open. Test participants see a plain-text link preview and are not redirected.
-                </p>
-                <p>
-                    Without a panel provider is the default: participants finish on a formr page, and no provider settings are needed. Choose With a panel provider to show the fields for its three return links, participant ID parameter and placeholder. These settings apply to the whole run, with one provider per run. Save Quota first, then choose <strong>Activate quotas and completion</strong> here to activate both modules together.
-                </p>
-                <h5>Example: returning the provider's participant ID</h5>
-                <p>
-                    Suppose the provider sends someone to your run with <code>?panel_id=abc123</code>. Enter <code>panel_id</code> as the participant ID parameter. formr receives <code>abc123</code> when that person enters; you do not enter individual IDs yourself.
-                </p>
-                <p>
-                    Suppose the provider gives you <code>https://panel.example/complete?m=%PANEL_ID%</code> as a return link. Enter <code>%PANEL_ID%</code> as the placeholder and paste the full link into Complete return link. That participant returns to <code>https://panel.example/complete?m=abc123</code>. This is an example: use the parameter name, exact placeholder and links supplied for your own study.
-                </p>
-                <h5>Which return link is used?</h5>
-                <ul>
-                    <li><code>complete</code>: the participant reaches Complete after your questionnaire and checks.</li>
-                    <li><code>quota_full</code>: Quota finds a full group, a missing answer, or an answer outside your groups.</li>
-                    <li><code>screen_out</code>: your screening or quality checks send the participant to a Stop point with this provider exit selected.</li>
-                </ul>
-                <p>
-                    Put your filters before Complete so excluded participants never reach it. Without a provider, these exits show a formr end page. Test Run shows provider return links as text rather than sending participants to the provider. An ID from the provider is still needed to build these links.
-                </p>
-                <p>
-                    Test the full run, including exclusions and return links, before inviting participants. If processing fails, the participant can reload the page to try again. A completion that has already been counted is not counted a second time.
                 </p>
             </div>
         </div>
@@ -505,25 +468,6 @@
     </div>
     <div class="panel panel-default">
         <div class="panel-heading">
-            <a class="accordion-toggle" data-toggle="collapse" href="#stop_point">
-                <i class="fa-fw fa fa-stop pull-left fa-3x"></i>
-                Stop Point<br>
-                <small>end a run with Stop Point or Complete</small></a>
-        </div>
-        <div id="stop_point" class="panel-collapse collapse stop_point">
-            <div class="panel-body">
-                <p>
-                    End a run with either Stop Point or Complete. Stop Point ends a participation without recording a successful quota completion; use Complete for a successful quota completion. You can use Stop Point to give short or complex feedback, ranging from "You're not eligible to participate." to "This is the scatter plot of your mood and your alcohol consumption across the last two weeks". Do not place a Stop Point on the successful path before Complete: it ends the participation before Complete can be reached.
-                </p>
-                <p>
-                    If you combine these end points with Skip Forward, you can have several in your run: You would use the Skip Forward to check whether participants are eligible, and if so, skip over the stop point between the Skip Forward and the survey that they are eligible for. This way, ineligible participants end up in a dead end before the survey. In the edit run interface, you can see green counts of the number of people on this position on the left, so you can see easily how many people are ineligible by checking the count.<br>
-                    See the <a href="#knitr_markdown" data-toggle="tab">Knitr &amp; Markdown</a> section to find out how to generate personalised feedback, including plots.
-                </p>
-            </div>
-        </div>
-    </div>
-    <div class="panel panel-default">
-        <div class="panel-heading">
             <a class="accordion-toggle" data-toggle="collapse" href="#shuffle">
                 <i class="fa-fw fa fa-random pull-left fa-3x"></i>
                 Shuffle<br>
@@ -536,6 +480,79 @@
                 </p>
                 <p>
                     If you combine a Shuffle with Skip Forward, you could send one group to an entirely different arm/path of the study. But maybe you just want to randomly switch on a specific item in a survey - then you would use a "showif" in the survey item table containing e.g. <code>shuffle$group == 2</code>. The randomisation always has to occur before you try to use the number, but the participants won't notice it unless you tell them somehow (for example by switching on a note telling them which group they've been assigned to).
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <a class="accordion-toggle" data-toggle="collapse" href="#complete">
+                <i class="fa-fw fa fa-check-circle pull-left fa-3x"></i>
+                Complete<br>
+                <small>finish successfully and count towards quotas</small></a>
+        </div>
+        <div id="complete" class="panel-collapse collapse complete">
+            <div class="panel-body">
+                <p>
+                    Use Complete at the end of a run that uses Quota. It records a successful completion in the participant's quota groups and ends their participation. Participants must have passed Quota, and each participation is counted once. It works with or without a panel provider. For a study without quotas, use Stop Point instead.
+                </p>
+                <p>
+                    Place Complete after the main questionnaire and all screening or quality checks. Send excluded participants to a Stop Point, with <code>screen_out</code> selected if you need a provider return. They must not reach Complete, because reaching it counts as a successful completion. A Stop Point is not needed after Complete, and a Stop Point on the successful path before Complete would end participation before it could be counted.
+                </p>
+                <h5>Completion page and return timing</h5>
+                <p>
+                    Add a thank-you message, feedback or debriefing under <strong>Feedback text</strong>. Both Complete and Stop Point support Markdown and personalised feedback; the difference is whether the participant is counted towards your quotas.
+                </p>
+                <p>
+                    With a panel provider, Complete shows this text and an individual return link, then redirects automatically after 10 seconds by default. Change <strong>Redirect delay (seconds)</strong> to allow time for longer debriefings. The link also lets participants return manually. You can edit the feedback, return message, link text and delay after activation. Without a provider, the completion page stays open. Test participants see the return link as plain text and are not redirected.
+                </p>
+                <h5>Provider settings and activation</h5>
+                <p>
+                    Without a panel provider is the default: participants finish on a formr page, and no provider settings are needed. Choose With a panel provider to show the fields for its three return links, participant ID parameter and placeholder. These settings apply to the whole run, with one provider per run. Save Quota first, then choose <strong>Activate quotas and completion</strong> here to activate both modules together.
+                </p>
+                <h5>Example: returning the provider's participant ID</h5>
+                <p>
+                    Suppose the provider sends someone to your run with <code>?panel_id=abc123</code>. Enter <code>panel_id</code> as the participant ID parameter. formr receives <code>abc123</code> when that person enters; you do not enter individual IDs yourself.
+                </p>
+                <p>
+                    Suppose the provider gives you <code>https://panel.example/complete?m=%PANEL_ID%</code> as a return link. Enter <code>%PANEL_ID%</code> as the placeholder and paste the full link into Complete return link. That participant returns to <code>https://panel.example/complete?m=abc123</code>. This is an example: use the parameter name, exact placeholder and links supplied for your own study.
+                </p>
+                <h5>Which return link is used?</h5>
+                <ul>
+                    <li><code>complete</code>: the participant reaches Complete after your questionnaire and checks.</li>
+                    <li><code>quota_full</code>: Quota finds a full group, a missing answer, or an answer outside your groups.</li>
+                    <li><code>screen_out</code>: your screening or quality checks send the participant to a Stop point with this provider exit selected.</li>
+                </ul>
+                <p>
+                    Put your filters before Complete so excluded participants never reach it. Without a provider, these exits show a formr end page. Test Run shows provider return links as text rather than sending participants to the provider. An ID from the provider is still needed to build these links.
+                </p>
+                <p>
+                    Test the full run, including exclusions and return links, before inviting participants. If processing fails, the participant can reload the page to try again. A completion that has already been counted is not counted a second time.
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="panel panel-default">
+        <div class="panel-heading">
+            <a class="accordion-toggle" data-toggle="collapse" href="#stop_point">
+                <i class="fa-fw fa fa-stop pull-left fa-3x"></i>
+                Stop Point<br>
+                <small>end participation without quota counting</small></a>
+        </div>
+        <div id="stop_point" class="panel-collapse collapse stop_point">
+            <div class="panel-body">
+                <p>
+                    Use Stop Point as the final page of a study without quotas, or as an early exit for participants excluded by screening or quality checks. It ends participation without adding a successful completion to the quota counts. For participants who successfully finish a run with Quota, use Complete instead.
+                </p>
+                <p>
+                    In a quota run, select <strong>End participation as screen_out</strong> for an exclusion. With a panel provider, formr uses the screen-out return link configured in Complete. Leave <strong>Show this page</strong> selected for an ordinary end page without a provider return. Ending at Stop Point never adds a successful quota completion.
+                </p>
+                <p>
+                    Combine Stop Point with Skip Forward to create a screening path: eligible participants skip past the Stop Point to the questionnaire; excluded participants reach it and stop. In a quota run, the successful path ends at Complete. Do not put a Stop Point on that path before Complete.
+                </p>
+                <p>
+                    Both ending modules can show feedback. Use <strong>Feedback text</strong> for a thank-you message, an explanation of an exclusion, or personalised results such as a plot of mood and alcohol consumption across the last two weeks.
+                    See the <a href="#knitr_markdown" data-toggle="tab">Knitr &amp; Markdown</a> section to find out how to generate personalised feedback, including plots.
                 </p>
             </div>
         </div>
