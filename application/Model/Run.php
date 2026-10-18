@@ -287,6 +287,12 @@ class Run extends Model
         }
 
         if ($public > 0) {
+            try {
+                (new QuotaPublication($this->db->pdo()))->assertReady((int) $this->id);
+            } catch (DomainException $error) {
+                alert(h($error->getMessage()), 'alert-warning');
+                return false;
+            }
             $run_expiry = $this->expiresOn;
             $problem = false;
             if ($run_expiry === null && Config::get('keep_study_data_for_months_maximum') !== INF) {

@@ -1,15 +1,25 @@
 # Quota activation, participant execution and provider exits
 
-Development milestone, 2026-10-15. Not a field release.
+Development milestone, updated 2026-10-18. Not a field release.
 
 ## Activation
 
-Save the Quota draft and the Complete exit settings, then use Save and activate in
-Quota. Complete requires an explicit choice: one provider profile per run, or no
-provider. Activation is an owner-only transaction locking the run. It revalidates
+Save the Quota draft, then use **Activate quotas and completion** in Complete.
+Complete defaults to **Without a panel provider** and shows the return-link fields
+only when **With a panel provider** is selected. The button saves these settings
+and asks for confirmation before jointly activating both modules. Quota itself
+has only Save. Unsaved quota edits must be saved before activation.
+Activation is an owner-only transaction locking the run. It revalidates
 saved survey bindings and requires exactly one Quota followed by one Complete,
 with unique run positions. Result columns must belong to an unambiguous base table;
 views and shared result-table metadata cannot be activated.
+
+When Publicness is changed to 1, 2 or 3, Run::togglePublic checks any Quota run
+through QuotaPublication. Exactly one Quota followed by one Complete, their shared
+activation and valid pinned completion settings are required. Rejection preserves
+the stored and displayed visibility. Messages appear only in the administrative
+editor (or the authenticated management API), never on participant pages. Making
+a run private remains possible; runs without Quota keep their existing behavior.
 
 The transaction creates the counting definition and pins both run-unit identities
 and the provider settings together. A failed write rolls everything back, preserving

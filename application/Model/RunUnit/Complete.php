@@ -27,7 +27,11 @@ class Complete extends RunUnit {
             (new QuotaProviderStore($this->db->pdo()))->save((int) $this->run->id,(int) $this->run_unit_id,(int) $this->run->user_id,$config);
         }
         $options['type'] = 'Complete';
-        return parent::create($options);
+        $result = parent::create($options);
+        if ($this->valid && !empty($options['quota_activate'])) {
+            (new QuotaStore($this->db->pdo()))->activate((int) $this->run->id,(int) $this->run->user_id);
+        }
+        return $result;
     }
 
     public function displayForRun($prepend = '') {

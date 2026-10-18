@@ -97,7 +97,7 @@
                     Only participants who reach <a href="#complete" data-toggle="collapse" data-target="#complete">Complete</a> count towards the limits. Passing Quota does not reserve a place. People who have already passed it can still finish after their group is full, so the count can exceed the limit. Test participants have their own counts, but use the same limits as field participants.
                 </p>
                 <p>
-                    Save your settings in Complete before choosing <strong>Save and activate</strong> in Quota. Activation fixes the categories and provider settings. You can still change limits and correct counts under <strong>Quotas</strong> in the run menu. You can also open that page and edit limits before activation.
+                    Save your quota tables, then choose <strong>Activate quotas and completion</strong> in Complete. This activates both modules and fixes the tables, variables, categories and provider settings. A panel provider is optional. You can still change limits and correct counts under <strong>Quotas</strong> in the run menu, including before activation. Before changing Publicness to allow participants, formr checks that both modules are present, in order and activated. Any missing setup is explained to you in the editor.
                 </p>
                 <p>
                     Use <strong>Refresh</strong> to load current figures; this discards unsaved edits. To change limits or counts, edit them and choose <strong>Save</strong>. A count correction keeps any new completions: if you change 87 to 85 and three people finish before you save, the result is 88. Your correction removes two; the three new completions remain. Changes are recorded with your account and the time. Fulfillment turns green at 100% and above.
@@ -125,7 +125,7 @@
                     Complete ends a successful participation and adds it to the quota counts. Place it after the main questionnaire and any quality checks. Participants must have passed Quota, and each participation is counted once. A normal Stop point does not add a completion to the quota counts.
                 </p>
                 <p>
-                    Choose whether you use a panel provider. Without one, participants finish on a formr page. With one, paste the provider's three return links and enter the participant ID parameter and placeholder. These settings apply to the whole run, with one provider per run.
+                    Without a panel provider is the default: participants finish on a formr page, and no provider settings are needed. Choose With a panel provider to show the fields for its three return links, participant ID parameter and placeholder. These settings apply to the whole run, with one provider per run. Save Quota first, then choose <strong>Activate quotas and completion</strong> here to activate both modules together.
                 </p>
                 <h5>Example: returning the provider's participant ID</h5>
                 <p>

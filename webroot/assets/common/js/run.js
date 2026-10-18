@@ -21,6 +21,10 @@ import {
   RunUnit.prototype.init = function (content) {
     this.block.htmlPolyfill($($.parseHTML(content))); // .html annoying but necessary, somewhere in here a clone where there should be none, appears
     this.quotaEditor = initQuotaEditor(this.block[0]);
+    const providerMode = this.block.find('[name=provider_mode]');
+    const showProviderDetails = () => this.block.find('.quota-provider-details').prop('hidden', providerMode.val() !== 'provider');
+    providerMode.on('change', showProviderDetails);
+    showProviderDetails();
     this.position = this.block.find(".run_unit_position input.position");
 
     this.position_changed = false;
@@ -88,7 +92,7 @@ import {
 
     this.unsavedChanges = false;
     this.save_button = this.block.find("a.unit_save");
-    this.block.find('.quota-activate').on('click', (event) => this.save(event, true));
+    this.block.find('.quota-activate').on('click', (event) => this.confirmQuotaActivation(event));
 
     this.block.find("button.from_days").on("click", function (e) {
       e.preventDefault();
@@ -375,9 +379,40 @@ import {
     return isValid;
   }
 
+  RunUnit.prototype.confirmQuotaActivation = function (event) {
+    event.preventDefault();
+    if (this.run.units.some((unit) => unit.position_changed)) {
+      bootstrap_alert('Save the module order with Reorder before activating quotas and completion.', 'Not activated.', this.block);
+      return false;
+    }
+    if (this.run.units.some((unit) => unit.quotaEditor && unit.unsavedChanges)) {
+      bootstrap_alert('Save your changes to Quota before activating quotas and completion.', 'Not activated.', this.block);
+      return false;
+    }
+    var $modal = $($.parseHTML(getHTMLTemplate('tpl-confirmation', {
+      content: '<h4>Activate quotas and completion?</h4><p>Tables, variables, categories and provider settings cannot be changed afterwards.</p><p>Limits and counts remain editable under Quotas in the run menu.</p>',
+      yes_url: '', no_url: '',
+    })));
+    $modal.find('.btn-yes').text('Activate').one('click', (e) => {
+      $modal.modal('hide');
+      this.save(e, true);
+    });
+    $modal.find('.btn-no').text('Cancel');
+    $modal.on('hidden.bs.modal', () => $modal.remove()).modal('show');
+    return false;
+  };
+
   RunUnit.prototype.save = function (e, activateQuota = false) {
     e.preventDefault();
     if (this.quotaEditor && !this.quotaEditor.sync()) return false;
+    if (activateQuota) {
+      if (this.block.find('.quota-activate').prop('disabled')) return false;
+      if (this.run.units.some((unit) => unit.quotaEditor && unit.unsavedChanges)) {
+        bootstrap_alert('Save your changes to Quota before activating quotas and completion.', 'Not activated.', this.block);
+        return false;
+      }
+      this.block.find('.quota-activate').prop('disabled', true);
+    }
 
     // Flush ACE editor sessions into their underlying textareas before
     // anything reads .val() on them. validatePushMessage and the
@@ -422,6 +457,11 @@ import {
             this.unsavedChanges = false;
             this.test_button.removeAttr("disabled");
           }
+          if (activateQuota) {
+            this.run.units.filter((unit) => unit.block.find('.quota-editor').length).forEach((unit) => {
+              this.run.loadUnit({ unit_id: unit.unit_id, run_unit_id: unit.run_unit_id }, unit);
+            });
+          }
 
           // not necessary because it's reloaded. should I be more economic about all this DOM and HTTP jazz? there's basically 2 situations where a reload makes things easier: emails where the accounts have been updated, surveys which went from "open" to "chose one". One day...
         }, this)
@@ -429,6 +469,7 @@ import {
       .fail(
         $.proxy(function (e, x, settings, exception) {
           this.save_button.removeAttr("disabled").html(old_text);
+          this.block.find('.quota-activate').prop('disabled', false);
           ajaxErrorHandling(e, x, settings, exception);
         }, this)
       );
@@ -918,7 +959,7 @@ import {
     }
 
     var $elements = context.find(
-      ".import_run_units, .run_unit_description, .position, .remove_unit_from_run, .reorder_units, .unit_save, .form-control, select, .from_days, .add_run_unit"
+      ".import_run_units, .run_unit_description, .position, .remove_unit_from_run, .reorder_units, .unit_save, .quota-activate, .form-control, select, .from_days, .add_run_unit"
     );
     $elements.each(function (i, elm) {
       // Unlocking the run must not unlock an activated quota definition.
@@ -954,14 +995,29 @@ import {
   };
 
   Run.prototype.publicToggle = function (e) {
+    e.preventDefault();
     var $this = $(this);
-    $this.parents(".btn-group").find(".btn-checked").removeClass("btn-checked");
-    $this.toggleClass("btn-checked", 1);
+    var $group = $this.closest('.btn-group');
+    if ($group.data('public-pending')) return false;
+    $group.data('public-pending', true);
     $.ajax({
       url: $this.attr("href"),
       dataType: "html",
       method: "POST",
-    }).fail(ajaxErrorHandling);
+    }).done(function () {
+      $group.find('.btn-checked').removeClass('btn-checked');
+      $this.addClass('btn-checked');
+    }).fail(function (response) {
+      var $alerts = $(response.responseText || '').find('.alert').addBack('.alert');
+      if (response.status === 400 && $alerts.length) {
+        $('.alerts-container').prepend($alerts);
+        $alerts[0].scrollIntoView({ block: 'center' });
+      } else {
+        ajaxErrorHandling(response);
+      }
+    }).always(function () {
+      $group.data('public-pending', false);
+    });
     return false;
   };
 

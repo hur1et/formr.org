@@ -16,9 +16,7 @@
 </fieldset>
 <hr>
 <p class="btn-group">
-    <a class="btn btn-default unit_save" href="ajax_save_run_unit?type=Quota"><?= $active ? 'Save description' : 'Save draft' ?></a>
-    <?php if (!$active): ?><button type="button" class="btn btn-primary quota-activate">Save and activate</button><?php endif; ?>
+    <a class="btn btn-default unit_save" href="ajax_save_run_unit?type=Quota"><?= $active ? 'Save description' : 'Save' ?></a>
 </p>
-<?php if (!$active): ?><p class="help-block">Save your provider settings in Complete before activating Quota.
-    After activation, the categories and provider settings cannot be changed.
-    Test the full run before inviting participants.</p><?php endif; ?>
+<?php if (!$active): ?><p class="help-block">Save your quota tables, then add Complete after the main questionnaire.
+    Activate both modules in Complete before opening the run to participants. A panel provider is optional.</p><?php endif; ?>

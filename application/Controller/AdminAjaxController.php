@@ -394,7 +394,7 @@ class AdminAjaxController {
         $run = $this->controller->run;
         $pub = $this->request->int('public');
         if (!$run->togglePublic($pub)) {
-            $this->response->setStatusCode(500, 'Bad Request');
+            $this->response->setStatusCode(400, 'Bad Request');
         }
         $content = $this->site->renderAlerts();
         return $this->response->setContent($content);

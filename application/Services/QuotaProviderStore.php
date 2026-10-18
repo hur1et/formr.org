@@ -24,7 +24,7 @@ class QuotaProviderStore {
         }
         $json = $this->query('SELECT provider_json FROM survey_quota_exit_drafts WHERE run_id=? AND complete_run_unit_id=?',
             [$runId,$unitId])->fetchColumn();
-        return ['active'=>false,'provider'=>$json === false ? ['mode'=>''] : json_decode($json,true,512,JSON_THROW_ON_ERROR)];
+        return ['active'=>false,'provider'=>$json === false ? ['mode'=>'none'] : json_decode($json,true,512,JSON_THROW_ON_ERROR)];
     }
 
     public function save(int $runId, int $unitId, int $actorId, array $config): void {

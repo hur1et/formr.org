@@ -11,7 +11,7 @@ test('active quotas remain read-only when the run is unlocked', async ({ page })
     await page.goto(runUrl);
     const editor = page.locator('.quota-editor[data-readonly="1"]');
     await expect(editor).toBeVisible();
-    await expect(page.getByRole('status')).toContainText('Quotas are active.');
+    await expect(page.getByRole('status').filter({ hasText: 'Quotas are active.' })).toBeVisible();
     const lock = page.locator('.lock-toggle');
     const wasLocked = (await lock.getAttribute('class')).includes('btn-checked');
     const assertReadOnly = async () => {

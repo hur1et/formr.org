@@ -29,9 +29,6 @@ class Quota extends RunUnit {
                 alert(h('Uncovered integer range: ' . $warning['source'] . ' ' . $warning['min'] . '–' . $warning['max']), 'alert-warning');
             }
         }
-        if (!empty($options['quota_activate'])) {
-            (new QuotaStore($this->db->pdo()))->activate((int) $this->run->id,(int) $this->run->user_id);
-        }
         $options['type'] = 'Quota';
         return parent::create($options);
     }
