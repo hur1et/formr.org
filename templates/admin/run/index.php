@@ -69,7 +69,7 @@
 
                             <div id="run-unit-choices">
                                 <div class="form-group col-lg-12 text-center">
-                                    <div class="btn-group">
+                                    <div class="run-unit-buttons" role="group" aria-label="Add a module">
                                         <?php foreach ($add_unit_buttons as $name => $button): ?>
                                             <a class="add_<?= strtolower($name)?> add_run_unit btn btn-default btn-lg hastooltip" title="<?= $button['title'] ?>" href="<?= admin_run_url($run->name, 'ajax_create_run_unit?type=' . $name) ?>" >
                                                 <i class="fa fa-2x <?= $button['icon'] ?>"></i>

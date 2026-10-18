@@ -138,6 +138,27 @@ input:focus {outline:none;}
     display: block;
     margin-top: 15px;
 }
+#run-unit-choices > .form-group {
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    padding-left: 0;
+    padding-right: 0;
+}
+#run-unit-choices .run-unit-buttons {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+#run-unit-choices .add_run_unit {
+    min-width: 0;
+    margin: 0;
+    padding: 10px 4px;
+}
+@media (max-width: 1199px) {
+    #run-unit-choices .run-unit-buttons {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+}
 .run_unit_inner {
     -webkit-box-shadow: 0 4px 4px -2px #efefef;
     -moz-box-shadow: 0 4px 4px -2px #efefef;
