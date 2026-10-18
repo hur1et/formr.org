@@ -38,11 +38,13 @@ class Quota extends RunUnit {
         $runId = (int) $this->run->id;
         $unitId = (int) $this->run_unit_id;
         $actorId = (int) $this->run->user_id;
+        $lifecycle = (new QuotaProviderStore($this->db->pdo()))->active($runId);
         return $this->runDialog(Template::get($this->getTemplatePath(), [
             'prepend' => $prepend, 'tables' => $editor->load($runId, $unitId, $actorId),
             'sources' => $editor->sources($runId, $unitId, $actorId),
             'overviewUrl' => admin_run_url($this->run->name, 'quotas'),
-            'active' => (new QuotaProviderStore($this->db->pdo()))->active($runId) !== null,
+            'active' => $lifecycle !== null && !(int)$lifecycle['editing'],
+            'reopened' => $lifecycle !== null && (int)$lifecycle['editing'],
         ]));
     }
 

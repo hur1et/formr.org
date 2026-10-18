@@ -18,13 +18,13 @@ class QuotaProviderStore {
     public function settings(int $runId, int $unitId, int $actorId): array {
         $this->requireComplete($runId,$unitId,$actorId);
         $active = $this->active($runId);
-        if ($active) {
+        if ($active && !(int)$active['editing']) {
             if ((int) $active['complete_run_unit_id'] !== $unitId) { throw new DomainException('This is not the configured Complete unit.'); }
-            return ['active'=>true,'provider'=>$active['provider']->toArray()];
+            return ['active'=>true,'reopened'=>false,'provider'=>$active['provider']->toArray()];
         }
         $json = $this->query('SELECT provider_json FROM survey_quota_exit_drafts WHERE run_id=? AND complete_run_unit_id=?',
             [$runId,$unitId])->fetchColumn();
-        return ['active'=>false,'provider'=>$json === false ? ['mode'=>'none'] : json_decode($json,true,512,JSON_THROW_ON_ERROR)];
+        return ['active'=>false,'reopened'=>$active !== null,'provider'=>$json === false ? ['mode'=>'none'] : json_decode($json,true,512,JSON_THROW_ON_ERROR)];
     }
 
     public function save(int $runId, int $unitId, int $actorId, array $config): void {
@@ -34,7 +34,8 @@ class QuotaProviderStore {
                 throw new DomainException('Provider settings require the run owner.');
             }
             $this->requireComplete($runId,$unitId,$actorId);
-            if ($this->active($runId)) { throw new DomainException('Activated provider settings cannot be replaced.'); }
+            $active=$this->active($runId);
+            if ($active && !(int)$active['editing']) { throw new DomainException('Reopen the quota configuration in Complete before changing provider settings.'); }
             $other = $this->query('SELECT complete_run_unit_id FROM survey_quota_exit_drafts WHERE run_id=?', [$runId])->fetchColumn();
             if ($other !== false && (int) $other !== $unitId) { throw new DomainException('Use one Complete unit per run.'); }
             $this->query('INSERT INTO survey_quota_exit_drafts (run_id,complete_run_unit_id,provider_json) VALUES (?,?,?)

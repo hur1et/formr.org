@@ -400,6 +400,18 @@ class AdminAjaxController {
         return $this->response->setContent($content);
     }
 
+    private function ajaxReopenQuotas() {
+        if (!Request::isAjaxRequest() || !Request::isHTTPPostRequest()) { formr_error(406, 'Not Acceptable'); }
+        try {
+            $run=$this->controller->run;
+            (new QuotaStore($this->dbh->pdo()))->reopen((int)$run->id,(int)$run->user_id);
+        } catch (DomainException $error) {
+            $this->response->setStatusCode(400,'Bad Request');
+            return $this->response->setContent('<div class="alert alert-danger">'.h($error->getMessage()).'</div>');
+        }
+        return $this->response->setContent('');
+    }
+
     private function ajaxSaveRunUnit() {
         if (!Request::isAjaxRequest()) {
             formr_error(406, 'Not Acceptable');

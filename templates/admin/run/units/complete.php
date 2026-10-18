@@ -2,7 +2,10 @@
 <p>Place Complete at the end of your questionnaire, after any quality checks.
     Participants must pass Quota before they can complete the study.</p>
 <?php if ($active): ?><div class="alert alert-info" role="status"><strong>Quotas and completion are active.</strong>
-    Provider settings can no longer be changed. Change limits and counts under Quotas in the run menu.</div><?php endif; ?>
+    Reopen the configuration below to edit it. Change limits and counts under Quotas in the run menu.</div><?php endif; ?>
+<?php if (!empty($reopened)): ?><div class="alert alert-warning" role="status">Configuration is open for editing.
+    Current rules remain in use until you activate the changes. Counts for matching table and group codes are retained,
+    even if their variables or ranges change. New codes start at zero. Review the counts after activation.</div><?php endif; ?>
 <?php $usesProvider = ($provider['mode'] ?? 'none') === 'provider'; ?>
 <fieldset class="quota-provider" <?= $active ? 'disabled' : '' ?>>
     <div class="form-group">
@@ -38,6 +41,7 @@
 <p class="btn-group">
     <a class="btn btn-default unit_save" href="ajax_save_run_unit?type=Complete"><?= $active ? 'Save description' : 'Save' ?></a>
     <?php if (!$active): ?><button type="button" class="btn btn-primary quota-activate">Activate quotas and completion</button><?php endif; ?>
+    <?php if ($active): ?><button type="button" class="btn btn-default quota-reopen">Reopen quota configuration</button><?php endif; ?>
 </p>
 <?php if (!$active): ?><p class="help-block">Save your quota tables first. This button saves the settings above and activates both Quota and Complete.
-    After activation, tables, variables, categories and provider settings cannot be changed. Limits and counts remain editable under Quotas.</p><?php endif; ?>
+    Activation locks the configuration until you explicitly reopen it. Limits and counts remain editable under Quotas.</p><?php endif; ?>

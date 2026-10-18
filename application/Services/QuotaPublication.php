@@ -18,11 +18,11 @@ class QuotaPublication {
         if ((int) $completes[0]['position'] <= (int) $quotas[0]['position']) {
             throw new DomainException('Visibility was not changed. Place Complete after Quota in Edit Run.');
         }
-        $query = $this->pdo->prepare('SELECT quota_run_unit_id,complete_run_unit_id,provider_json
+        $query = $this->pdo->prepare('SELECT quota_run_unit_id,complete_run_unit_id,provider_json,editing
             FROM survey_quota_lifecycle WHERE run_id=?');
         $query->execute([$runId]);
         $active = $query->fetch(PDO::FETCH_ASSOC);
-        if (!$active || (int) $active['quota_run_unit_id'] !== (int) $quotas[0]['id']
+        if (!$active || (int)$active['editing'] || (int) $active['quota_run_unit_id'] !== (int) $quotas[0]['id']
             || (int) $active['complete_run_unit_id'] !== (int) $completes[0]['id']) {
             throw new DomainException('Visibility was not changed. Configure Quota, then choose Activate quotas and completion in Complete. A panel provider is optional.');
         }

@@ -10,7 +10,7 @@ class QuotaPublicationTest extends TestCase {
         $this->pdo->exec('CREATE TABLE survey_runs (id INTEGER PRIMARY KEY, public INTEGER);
             CREATE TABLE survey_units (id INTEGER PRIMARY KEY, type TEXT);
             CREATE TABLE survey_run_units (id INTEGER PRIMARY KEY,run_id INTEGER,unit_id INTEGER,position INTEGER);
-            CREATE TABLE survey_quota_lifecycle (run_id INTEGER,quota_run_unit_id INTEGER,complete_run_unit_id INTEGER,provider_json TEXT);
+            CREATE TABLE survey_quota_lifecycle (run_id INTEGER,quota_run_unit_id INTEGER,complete_run_unit_id INTEGER,provider_json TEXT,editing INTEGER DEFAULT 0);
             INSERT INTO survey_runs VALUES (1,0);
             INSERT INTO survey_units VALUES (10,"Survey"),(20,"Quota"),(30,"Complete");
             INSERT INTO survey_run_units VALUES (100,1,10,10)');
@@ -21,7 +21,7 @@ class QuotaPublicationTest extends TestCase {
     }
 
     private function activate(array $config = ['mode'=>'none']): void {
-        $query = $this->pdo->prepare('INSERT INTO survey_quota_lifecycle VALUES (1,200,300,?)');
+        $query = $this->pdo->prepare('INSERT INTO survey_quota_lifecycle (run_id,quota_run_unit_id,complete_run_unit_id,provider_json) VALUES (1,200,300,?)');
         $query->execute([json_encode($config, JSON_THROW_ON_ERROR)]);
     }
 
@@ -52,7 +52,7 @@ class QuotaPublicationTest extends TestCase {
 
     public static function incompleteCases(): array {
         return array_map(fn($case)=>[$case], ['missing_complete','missing_activation','wrong_order',
-            'different_complete','duplicate_quota','invalid_provider','duplicate_position']);
+            'different_complete','duplicate_quota','invalid_provider','duplicate_position','editing']);
     }
 
     #[DataProvider('incompleteCases')]
@@ -67,6 +67,7 @@ class QuotaPublicationTest extends TestCase {
             case 'duplicate_quota': $this->pdo->exec('INSERT INTO survey_run_units VALUES (201,1,20,25)'); break;
             case 'invalid_provider': $this->pdo->exec('UPDATE survey_quota_lifecycle SET provider_json="{}"'); break;
             case 'duplicate_position': $this->pdo->exec('UPDATE survey_run_units SET position=20 WHERE id=100'); break;
+            case 'editing': $this->pdo->exec('UPDATE survey_quota_lifecycle SET editing=1'); break;
         }
         foreach ([1,2,3] as $visibility) {
             self::assertFalse($this->studyRun()->togglePublic($visibility));

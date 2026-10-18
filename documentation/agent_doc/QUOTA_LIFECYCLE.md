@@ -29,9 +29,31 @@ reload the editor to see the active state. It cannot create a second definition.
 
 Active category controls are read-only. The Quotas menu now provides audited limit/count
 changes; see QUOTA_OVERVIEW.md for all-table saves and concurrent completion handling.
-Provider settings are also held fixed in this development version. Safe field editing
-and its effect on existing participations need an explicit product decision before
-that editing is enabled; this guard is not a completed configuration-versioning feature.
+Provider settings are locked along with the definition until the owner explicitly
+chooses Reopen quota configuration in Complete and acknowledges the warning.
+
+## Reopening (2026-10-18)
+
+Patch 065 adds an editing flag, active/retired table and group markers, a table-code
+snapshot for each admission, and an owner/time/configuration audit log. Reopening
+copies the current rules and provider profile into the drafts. It leaves the live
+configuration, visibility, counts, participant decisions and responses untouched.
+Repeated reopening does not overwrite an already edited draft.
+
+Reactivation locks the run and quota, validates the drafts, and updates the live
+configuration atomically. Matching table/group codes reuse their ledger identities
+and counts (including codes that had been retired); entirely new codes start at
+zero. No earlier admission is re-evaluated or retroactively assigned to new tables.
+Removed groups/tables are marked inactive, never deleted: admitted participants
+still complete against their original assignments and table-code snapshot. Failed
+reactivation leaves the old live rules in force and the drafts editable. History
+records actor, time and before/after configurations, including provider settings.
+
+The export keeps retired table assignments. The CSV codebook recovers retired group
+meanings from the configuration log. For reused codes whose variables or ranges
+change, the current meaning is shown; the warning explicitly requires researcher
+review of retained counts. This is deliberate user-approved behavior, not automatic
+reclassification. No response deletion or counter reset is introduced.
 
 ## Participant lifecycle
 

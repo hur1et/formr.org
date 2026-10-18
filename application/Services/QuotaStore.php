@@ -59,8 +59,8 @@ class QuotaStore {
             if (!$this->query('SELECT id FROM survey_runs WHERE id=? AND user_id=? FOR UPDATE', [$runId,$actorId])->fetch()) {
                 throw new DomainException('Only the run owner can activate quotas.');
             }
-            $existing = $this->query('SELECT quota_id FROM survey_quota_lifecycle WHERE run_id=?', [$runId])->fetchColumn();
-            if ($existing !== false) { return (int) $existing; }
+            $existing = $this->query('SELECT quota_id,editing FROM survey_quota_lifecycle WHERE run_id=?', [$runId])->fetch(PDO::FETCH_ASSOC);
+            if ($existing && !(int)$existing['editing']) { return (int) $existing['quota_id']; }
             $draft = $this->query('SELECT run_unit_id,tables_json FROM survey_quota_drafts WHERE run_id=? FOR UPDATE', [$runId])->fetch(PDO::FETCH_ASSOC);
             $exit = $this->query('SELECT complete_run_unit_id,provider_json FROM survey_quota_exit_drafts WHERE run_id=? FOR UPDATE', [$runId])->fetch(PDO::FETCH_ASSOC);
             if (!$draft || !$exit) { throw new DomainException('Save the quota tables and Complete exit settings before activation.'); }
@@ -80,12 +80,68 @@ class QuotaStore {
             if ($this->query('SELECT position FROM survey_run_units WHERE run_id=? GROUP BY position HAVING COUNT(*)>1', [$runId])->fetch()) {
                 throw new DomainException('Run positions must be unique before quota activation.');
             }
+            if ($existing) {
+                $quotaId = (int)$existing['quota_id'];
+                $this->query('SELECT id FROM survey_quotas WHERE id=? AND run_id=? FOR UPDATE', [$quotaId,$runId])->fetch();
+                $this->replaceDefinition($quotaId,$tables);
+                $this->query('UPDATE survey_quota_lifecycle SET editing=0,provider_json=?,activated_by=?,activated_at=NOW(6)
+                    WHERE run_id=?', [json_encode($config->toArray(),JSON_THROW_ON_ERROR),$actorId,$runId]);
+                $this->configurationLog($quotaId,$actorId,'reactivate',$tables,$config->toArray());
+                return $quotaId;
+            }
             $quotaId = $this->writeDefinition($runId,$tables);
             $this->query('INSERT INTO survey_quota_lifecycle
                 (quota_id,run_id,quota_run_unit_id,complete_run_unit_id,provider_json,activated_by) VALUES (?,?,?,?,?,?)',
                 [$quotaId,$runId,$draft['run_unit_id'],$exit['complete_run_unit_id'],json_encode($config->toArray(),JSON_THROW_ON_ERROR),$actorId]);
             return $quotaId;
         });
+    }
+
+    /** Reopen only the authoring drafts. Participants keep using the live rules. */
+    public function reopen(int $runId, int $actorId): void {
+        $this->transaction(function () use ($runId,$actorId) {
+            if (!$this->query('SELECT id FROM survey_runs WHERE id=? AND user_id=? FOR UPDATE',[$runId,$actorId])->fetch()) {
+                throw new DomainException('Only the run owner can reopen quotas.');
+            }
+            $active=$this->query('SELECT * FROM survey_quota_lifecycle WHERE run_id=?',[$runId])->fetch(PDO::FETCH_ASSOC);
+            if (!$active) { throw new DomainException('Activate quotas before reopening their configuration.'); }
+            if ((int)$active['editing']) { return; }
+            $quotaId=(int)$active['quota_id'];
+            $this->query('SELECT id FROM survey_quotas WHERE id=? FOR UPDATE',[$quotaId])->fetch();
+            $tables=$this->definitions($quotaId)['tables'];
+            $this->query('UPDATE survey_quota_decisions SET expected_tables_json=? WHERE quota_id=? AND expected_tables_json IS NULL',
+                [json_encode(array_keys($tables),JSON_THROW_ON_ERROR),$quotaId]);
+            $this->query('INSERT INTO survey_quota_drafts (run_id,run_unit_id,tables_json) VALUES (?,?,?)
+                ON DUPLICATE KEY UPDATE tables_json=VALUES(tables_json),modified=CURRENT_TIMESTAMP(6)',
+                [$runId,$active['quota_run_unit_id'],json_encode($tables,JSON_THROW_ON_ERROR)]);
+            $this->query('INSERT INTO survey_quota_exit_drafts (run_id,complete_run_unit_id,provider_json) VALUES (?,?,?)
+                ON DUPLICATE KEY UPDATE provider_json=VALUES(provider_json)',
+                [$runId,$active['complete_run_unit_id'],$active['provider_json']]);
+            $this->configurationLog($quotaId,$actorId,'reopen',$tables,json_decode($active['provider_json'],true,512,JSON_THROW_ON_ERROR));
+            $this->query('UPDATE survey_quota_lifecycle SET editing=1 WHERE run_id=?',[$runId]);
+        });
+    }
+
+    /** Matching codes retain their identities and counters, including retired codes. */
+    private function replaceDefinition(int $quotaId,array $tables): void {
+        $rules=new QuotaRules($tables);
+        $this->query('UPDATE survey_quota_tables SET active=0 WHERE quota_id=?',[$quotaId]);
+        $this->query('UPDATE survey_quota_groups SET active=0 WHERE quota_id=?',[$quotaId]);
+        foreach ($tables as $code=>$table) {
+            $this->query('INSERT INTO survey_quota_tables (quota_id,code,dimensions_json,active) VALUES (?,?,?,1)
+                ON DUPLICATE KEY UPDATE dimensions_json=VALUES(dimensions_json),active=1',
+                [$quotaId,(string)$code,json_encode($table['dimensions'],JSON_THROW_ON_ERROR)]);
+            $tableId=(int)$this->query('SELECT id FROM survey_quota_tables WHERE quota_id=? AND code=?',[$quotaId,(string)$code])->fetchColumn();
+            foreach ($rules->getGroups()[$code] as $groupCode=>$group) {
+                $this->query('INSERT INTO survey_quota_groups (quota_id,table_id,code,quota_limit,active) VALUES (?,?,?,?,1)
+                    ON DUPLICATE KEY UPDATE quota_limit=VALUES(quota_limit),active=1',[$quotaId,$tableId,(string)$groupCode,$group['limit']]);
+            }
+        }
+    }
+
+    private function configurationLog(int $quotaId,int $actorId,string $action,array $tables,array $provider): void {
+        $this->query('INSERT INTO survey_quota_configuration_log (quota_id,actor_id,action,tables_json,provider_json) VALUES (?,?,?,?,?)',
+            [$quotaId,$actorId,$action,json_encode($tables,JSON_THROW_ON_ERROR),json_encode($provider,JSON_THROW_ON_ERROR)]);
     }
 
     /**
@@ -103,9 +159,10 @@ class QuotaStore {
             $rules = new QuotaRules($definitions['tables']);
             $evaluation = $rules->evaluate($loadAnswers(), $this->counts($quotaId, $cohort, $definitions));
             $this->query('INSERT INTO survey_quota_decisions
-                (quota_id, run_session_id, cohort, outcome, reason, rejected_table, rejected_source)
-                VALUES (?, ?, ?, ?, ?, ?, ?)', [$quotaId, $sessionId, $cohort, $evaluation['status'],
-                    $evaluation['reason'], $evaluation['table'] ?? null, $evaluation['source'] ?? null]);
+                (quota_id, run_session_id, cohort, outcome, reason, rejected_table, rejected_source,expected_tables_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [$quotaId, $sessionId, $cohort, $evaluation['status'],
+                    $evaluation['reason'], $evaluation['table'] ?? null, $evaluation['source'] ?? null,
+                    json_encode(array_keys($definitions['tables']),JSON_THROW_ON_ERROR)]);
             $decisionId = (int) $this->pdo->lastInsertId();
             foreach ($evaluation['assignments'] as $table => $group) {
                 $identity = $definitions['groups'][$table][$group];
@@ -309,12 +366,12 @@ class QuotaStore {
     /** Regenerate combinations and check the stored group set before trusting it. */
     private function definitions(int $quotaId): array {
         $tables = $groups = [];
-        foreach ($this->query('SELECT * FROM survey_quota_tables WHERE quota_id = ? ORDER BY id', [$quotaId]) as $row) {
+        foreach ($this->query('SELECT * FROM survey_quota_tables WHERE quota_id = ? AND active=1 ORDER BY id', [$quotaId]) as $row) {
             $table = $row['code'];
             $tables[$table] = ['dimensions' => json_decode($row['dimensions_json'], true, 512, JSON_THROW_ON_ERROR),
                 'limits' => []];
             $groups[$table] = [];
-            foreach ($this->query('SELECT * FROM survey_quota_groups WHERE table_id = ? AND quota_id = ? ORDER BY id',
+            foreach ($this->query('SELECT * FROM survey_quota_groups WHERE table_id = ? AND quota_id = ? AND active=1 ORDER BY id',
                 [$row['id'], $quotaId]) as $group) {
                 $tables[$table]['limits'][$group['code']] = self::integer($group['quota_limit']);
                 $groups[$table][$group['code']] = ['id' => (int) $group['id'], 'table_id' => (int) $row['id']];
@@ -361,12 +418,13 @@ class QuotaStore {
             JOIN survey_quota_tables t ON t.id = a.table_id
             JOIN survey_quota_groups g ON g.id = a.group_id
             WHERE a.decision_id = ? ORDER BY t.id', [$decision['id']]) as $row) {
-            if (!isset($definitions['groups'][$row['table_code']][$row['group_code']])) {
-                throw new UnexpectedValueException('Saved assignment no longer matches this quota.');
-            }
             $assignments[$row['table_code']] = $row['group_code'];
         }
-        if (($decision['outcome'] === 'admitted' && count($assignments) !== count($definitions['tables']))
+        $expected=isset($decision['expected_tables_json'])
+            ? json_decode($decision['expected_tables_json'],true,512,JSON_THROW_ON_ERROR) : array_keys($definitions['tables']);
+        if (!is_array($expected) || !$expected) { throw new UnexpectedValueException('Saved quota table identities are missing.'); }
+        $expected=array_fill_keys($expected,true);
+        if (($decision['outcome'] === 'admitted' && (array_diff_key($expected,$assignments) || array_diff_key($assignments,$expected)))
             || ($decision['outcome'] === 'rejected' && $assignments)) {
             throw new UnexpectedValueException('Saved quota assignments are incomplete or inconsistent.');
         }

@@ -93,6 +93,7 @@ import {
     this.unsavedChanges = false;
     this.save_button = this.block.find("a.unit_save");
     this.block.find('.quota-activate').on('click', (event) => this.confirmQuotaActivation(event));
+    this.block.find('.quota-reopen').on('click', (event) => this.confirmQuotaReopening(event));
 
     this.block.find("button.from_days").on("click", function (e) {
       e.preventDefault();
@@ -390,12 +391,38 @@ import {
       return false;
     }
     var $modal = $($.parseHTML(getHTMLTemplate('tpl-confirmation', {
-      content: '<h4>Activate quotas and completion?</h4><p>Tables, variables, categories and provider settings cannot be changed afterwards.</p><p>Limits and counts remain editable under Quotas in the run menu.</p>',
+      content: '<h4>Activate quotas and completion?</h4><p>This locks tables, variables, categories and provider settings until you explicitly reopen the configuration.</p><p>Existing counts for matching table and group codes are retained. Changed ranges or variables do not reclassify earlier participants. Limits and counts remain editable under Quotas.</p>',
       yes_url: '', no_url: '',
     })));
     $modal.find('.btn-yes').text('Activate').one('click', (e) => {
       $modal.modal('hide');
       this.save(e, true);
+    });
+    $modal.find('.btn-no').text('Cancel');
+    $modal.on('hidden.bs.modal', () => $modal.remove()).modal('show');
+    return false;
+  };
+
+  RunUnit.prototype.confirmQuotaReopening = function (event) {
+    event.preventDefault();
+    if (this.run.units.some((unit) => unit.block.find('.quota-editor, .quota-provider').length && unit.unsavedChanges)) {
+      bootstrap_alert('Save your changes to Quota and Complete before reopening the configuration.', 'Not reopened.', this.block);
+      return false;
+    }
+    var $modal = $($.parseHTML(getHTMLTemplate('tpl-confirmation', {
+      content: '<h4>Reopen quota configuration?</h4><p><strong>Changing quotas during a study can affect your sample and make existing counts inconsistent with the new groups.</strong></p><ul><li>Matching table and group codes retain their counts, even if you change their variables or ranges. New codes start at zero. Previously used codes retain their old counts if reused.</li><li>Earlier participants are not reclassified. Removed groups and their previous assignments are retained. Questionnaire responses are not deleted.</li><li>Changing provider settings can affect return links for participants already in the study.</li><li>Current rules stay in use while you edit. Changes take effect only when you activate them again in Complete. Check and correct counts afterwards.</li></ul><label><input type="checkbox" class="quota-reopen-confirmation"> I understand the consequences and want to reopen the configuration.</label>',
+      yes_url: '', no_url: '',
+    })));
+    const $confirm = $modal.find('.btn-yes').text('Reopen configuration').removeClass('btn-success').addClass('btn-danger').prop('disabled', true);
+    $modal.find('.quota-reopen-confirmation').on('change', function () { $confirm.prop('disabled', !this.checked); });
+    $confirm.one('click', () => {
+      $modal.modal('hide');
+      this.block.find('.quota-reopen').prop('disabled', true);
+      $.ajax({ url: this.run.url + '/ajax_reopen_quotas', method: 'POST', dataType: 'html' })
+        .done(() => this.run.units.filter((unit) => unit.block.find('.quota-editor, .quota-provider').length).forEach((unit) => {
+          this.run.loadUnit({ unit_id: unit.unit_id, run_unit_id: unit.run_unit_id }, unit);
+        }))
+        .fail((response) => { this.block.find('.quota-reopen').prop('disabled', false); ajaxErrorHandling(response); });
     });
     $modal.find('.btn-no').text('Cancel');
     $modal.on('hidden.bs.modal', () => $modal.remove()).modal('show');
@@ -959,7 +986,7 @@ import {
     }
 
     var $elements = context.find(
-      ".import_run_units, .run_unit_description, .position, .remove_unit_from_run, .reorder_units, .unit_save, .quota-activate, .form-control, select, .from_days, .add_run_unit"
+      ".import_run_units, .run_unit_description, .position, .remove_unit_from_run, .reorder_units, .unit_save, .quota-activate, .quota-reopen, .form-control, select, .from_days, .add_run_unit"
     );
     $elements.each(function (i, elm) {
       // Unlocking the run must not unlock an activated quota definition.

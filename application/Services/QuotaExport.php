@@ -75,9 +75,10 @@ class QuotaExport {
         return ['columns'=>$columns,'codebook'=>$book];
     }
 
-    private function describeTable(array $table,string $name): array {
+    private function describeTable(array $table,string $name,?string $onlyCode=null): array {
         $dimensions=json_decode($table['dimensions_json'],true,512,JSON_THROW_ON_ERROR);
         $groups=(new QuotaRules([$table['code']=>['dimensions'=>$dimensions]]))->getGroups()[$table['code']];
+        if ($onlyCode !== null) { $groups=array_intersect_key($groups,[$onlyCode=>true]); }
         $labels=[];
         foreach ($dimensions as $index=>$dimension) {
             if ($dimension['type']==='category') { $labels[$index]=$this->choiceLabels($dimension,(int)$table['run_id']); }
@@ -93,7 +94,31 @@ class QuotaExport {
             }
             $rows[]=self::entry($name,$table['run_name'],$table['code'],(string)$code,implode(' × ',$meanings));
         }
-        $rows[]=self::entry($name,$table['run_name'],$table['code'],'','No saved admission to this quota table.');
+        if ($onlyCode === null) {
+            $retired=$this->pdo->prepare('SELECT code FROM survey_quota_groups WHERE table_id=? AND active=0 ORDER BY id');
+            $retired->execute([$table['table_id']]);
+            $codes=array_filter($retired->fetchAll(PDO::FETCH_COLUMN),fn($code)=>!isset($groups[$code]));
+            if ($codes) {
+                $history=$this->pdo->prepare('SELECT tables_json FROM survey_quota_configuration_log WHERE quota_id=? ORDER BY id DESC');
+                $history->execute([$table['quota_id']]);
+                $snapshots=array_map(fn($json)=>json_decode($json,true,512,JSON_THROW_ON_ERROR),$history->fetchAll(PDO::FETCH_COLUMN));
+                foreach ($codes as $code) {
+                    foreach ($snapshots as $snapshot) {
+                        if (!isset($snapshot[$table['code']])) { continue; }
+                        $past=$snapshot[$table['code']];
+                        if (!isset((new QuotaRules([$table['code']=>$past]))->getGroups()[$table['code']][$code])) { continue; }
+                        $historical=$table;
+                        $historical['dimensions_json']=json_encode($past['dimensions'],JSON_THROW_ON_ERROR);
+                        foreach ($this->describeTable($historical,$name,(string)$code) as $row) {
+                            $row['meaning']='Retired group: '.$row['meaning'];
+                            $rows[]=$row;
+                        }
+                        break;
+                    }
+                }
+            }
+            $rows[]=self::entry($name,$table['run_name'],$table['code'],'','No saved admission to this quota table.');
+        }
         return $rows;
     }
 

@@ -57,6 +57,7 @@ class QuotaStoreTest extends TestCase {
         self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/062_quota_lifecycle.sql'));
         self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/063_quota_overview_edits.sql'));
         self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/064_quota_shares.sql'));
+        self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/065_quota_reopening.sql'));
     }
 
     public static function tearDownAfterClass(): void {
@@ -69,7 +70,7 @@ class QuotaStoreTest extends TestCase {
     }
 
     protected function setUp(): void {
-        foreach (['survey_quota_shares','survey_quota_edits','survey_quota_provider_ids','survey_quota_lifecycle','survey_quota_exit_drafts','survey_quota_drafts', 'survey_quota_limit_changes', 'survey_quota_adjustments', 'survey_quota_completions',
+        foreach (['survey_quota_configuration_log','survey_quota_shares','survey_quota_edits','survey_quota_provider_ids','survey_quota_lifecycle','survey_quota_exit_drafts','survey_quota_drafts', 'survey_quota_limit_changes', 'survey_quota_adjustments', 'survey_quota_completions',
             'survey_quota_assignments', 'survey_quota_decisions', 'survey_quota_groups', 'survey_quota_tables',
             'survey_quotas', 'quota_demo_results', 'survey_item_choices', 'survey_items', 'survey_studies',
             'survey_run_units', 'survey_unit_sessions', 'survey_pages', 'survey_units', 'survey_run_sessions', 'survey_runs'] as $table) {
@@ -1529,6 +1530,136 @@ class QuotaStoreTest extends TestCase {
         self::assertTrue($result['ordinary_deleted']);
         self::assertTrue($result['account_preserved']);
         self::assertTrue($result['outer_transaction_preserved']);
+    }
+
+    private function reopenAnswers(): array {
+        return ['survey_201.age'=>'29','survey_201.sex'=>'2','survey_201.education'=>'uni'];
+    }
+
+    public function testReopeningKeepsLiveRulesAndDoesNotOverwriteAnEditedDraftOnRetry(): void {
+        $this->seedLifecycle();
+        $this->store->admit(1,$this->quota,1,fn()=>$this->reopenAnswers());
+        $this->store->complete(1,$this->quota,1,101);
+        self::$db->exec('UPDATE survey_quota_decisions SET expected_tables_json=NULL');
+        $this->store->reopen(1,7);
+        $editor=new QuotaEditor(self::$db);
+        $draft=$editor->load(1,202,7);
+        $draft['age_sex']['dimensions'][0]['categories']['adult']['min']=20;
+        $editor->save(1,202,7,$draft);
+        $this->store->reopen(1,7);
+        self::assertSame($draft,$editor->load(1,202,7));
+        self::assertSame(18,$this->store->overview(1,$this->quota,'field',7)['tables']['age_sex']['dimensions'][0]['categories']['adult']['min']);
+        $this->assertCounts(1);
+        self::assertFalse((new QuotaProviderStore(self::$db))->settings(1,203,7)['active']);
+        self::assertSame(1,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_configuration_log')->fetchColumn());
+        self::assertNotNull(self::$db->query('SELECT expected_tables_json FROM survey_quota_decisions')->fetchColumn());
+    }
+
+    public function testReactivationKeepsCountsCorrectionsAndLiveCompletionsAndStartsNewCodesAtZero(): void {
+        $this->seedLifecycle();
+        $quota=$this->quota;
+        foreach ([1,2,4] as $session) { $this->store->admit(1,$quota,$session,fn()=>$this->reopenAnswers()); }
+        $this->store->complete(1,$quota,1,101);
+        $this->store->complete(1,$quota,4,104);
+        $this->store->adjust(1,$quota,'age_sex','adult|female','field',2,7,'Correction','reopen-correction');
+        $this->store->reopen(1,7);
+        $editor=new QuotaEditor(self::$db); $draft=$editor->load(1,202,7);
+        $draft['age_sex']['dimensions'][0]['categories']['adult']['max']=39;
+        $draft['age_sex']['dimensions'][0]['categories']['older']=['min'=>40,'max'=>99];
+        $draft['age_sex']['limits']['older|female']=5;
+        $editor->save(1,202,7,$draft);
+        $this->store->complete(1,$quota,2,102);
+        self::assertSame($quota,$this->store->activate(1,7));
+        self::assertSame($quota,$this->store->activate(1,7));
+        $counts=$this->store->getCounts(1,$quota,'field');
+        self::assertSame(4,$counts['age_sex']['adult|female']);
+        self::assertSame(0,$counts['age_sex']['older|female']);
+        self::assertSame(2,$counts['education']['uni']);
+        self::assertSame(1,$this->store->getCounts(1,$quota,'test')['age_sex']['adult|female']);
+        self::assertSame(3,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_completions')->fetchColumn());
+        self::assertSame(2,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_configuration_log')->fetchColumn());
+    }
+
+    public function testReopeningRemovedGroupsKeepEarlierAdmissionsCompletionsAndExportLegends(): void {
+        $this->seedLifecycle();
+        $admitted=$this->store->admit(1,$this->quota,1,fn()=>$this->reopenAnswers());
+        $rejected=$this->store->admit(1,$this->quota,2,fn()=>[]);
+        $this->store->reopen(1,7);
+        $editor=new QuotaEditor(self::$db); $draft=$editor->load(1,202,7);
+        unset($draft['education']);
+        $draft['age_sex']['dimensions'][0]['categories']=['older'=>['min'=>30,'max'=>99]];
+        $draft['age_sex']['limits']=['older|female'=>10];
+        $editor->save(1,202,7,$draft); $this->store->activate(1,7);
+        $completed=$this->store->complete(1,$this->quota,1,101);
+        self::assertSame($admitted['assignments'],$completed['assignments']);
+        self::assertNotNull($completed['completed_at']);
+        self::assertSame($rejected,$this->store->admit(1,$this->quota,2,fn()=>$this->reopenAnswers()));
+        self::assertSame(['age_sex'=>['older|female'=>0]],$this->store->getCounts(1,$this->quota,'field'));
+        $book=(new QuotaExport(self::$db))->codebook(20,7,['session_id','age']);
+        $row=array_values(array_filter($book,fn($entry)=>$entry['quota_table']==='age_sex' && $entry['value']==='adult|female'));
+        self::assertCount(1,$row);
+        self::assertStringContainsString('Retired group:',$row[0]['meaning']);
+        self::assertStringContainsString('18–29',$row[0]['meaning']);
+        self::assertSame(2,(int)self::$db->query('SELECT COUNT(*) FROM survey_quota_assignments')->fetchColumn());
+        // Previously used codes recover the same identities and their retained counts.
+        $this->store->reopen(1,7);
+        $restored=self::tables();
+        foreach ($restored as &$table) {
+            foreach ($table['dimensions'] as &$dimension) { $dimension['source']='survey_201.'.$dimension['item_name']; }
+            unset($dimension);
+        }
+        unset($table);
+        $editor->save(1,202,7,$restored); $this->store->activate(1,7);
+        $this->assertCounts(1);
+    }
+
+    public function testReopeningNewTablesDoNotBlockPreviouslyAdmittedParticipants(): void {
+        $this->seedLifecycle();
+        $this->store->admit(1,$this->quota,1,fn()=>$this->reopenAnswers());
+        $this->store->reopen(1,7);
+        $editor=new QuotaEditor(self::$db); $draft=$editor->load(1,202,7);
+        $draft['additional_education']=$draft['education'];
+        foreach ($draft as &$table) { foreach ($table['limits'] as &$limit) { $limit=10; } unset($limit); }
+        unset($table);
+        $editor->save(1,202,7,$draft); $this->store->activate(1,7);
+        self::assertCount(2,$this->store->complete(1,$this->quota,1,101)['assignments']);
+        self::assertSame(0,$this->store->getCounts(1,$this->quota,'field')['additional_education']['uni']);
+        self::assertCount(3,$this->store->admit(1,$this->quota,2,fn()=>$this->reopenAnswers())['assignments']);
+        $this->store->complete(1,$this->quota,2,102);
+        self::assertSame(1,$this->store->getCounts(1,$this->quota,'field')['additional_education']['uni']);
+        self::assertSame(2,$this->store->getCounts(1,$this->quota,'field')['education']['uni']);
+    }
+
+    public function testReopeningProviderDraftDoesNotChangeLiveReturnLinksUntilReactivation(): void {
+        $this->seedLifecycle(true);
+        $providers=new QuotaProviderStore(self::$db);
+        $providers->capture(1,1,['panel'=>'provided-test-ID']);
+        $before=$providers->active(1)['provider']->toArray();
+        $this->store->reopen(1,7);
+        $draft=$providers->settings(1,203,7)['provider'];
+        $draft['complete']='https://provider.example/changed?p=777&m=%PANEL%';
+        $providers->save(1,203,7,$draft);
+        self::assertSame($before,$providers->active(1)['provider']->toArray());
+        self::assertSame($draft,$providers->settings(1,203,7)['provider']);
+        $this->store->activate(1,7);
+        self::assertSame($draft,$providers->active(1)['provider']->toArray());
+        self::assertSame('provided-test-ID',$providers->identity($this->quota,1));
+    }
+
+    public function testReopeningRequiresTheOwnerAndFailedReactivationPreservesLiveRules(): void {
+        $this->seedLifecycle();
+        try { $this->store->reopen(1,8); self::fail('Wrong owner.'); } catch (DomainException $error) {}
+        self::assertSame(0,(int)self::$db->query('SELECT editing FROM survey_quota_lifecycle')->fetchColumn());
+        $this->store->reopen(1,7);
+        $before=$this->store->overview(1,$this->quota,'field',7);
+        self::$db->exec('CREATE TRIGGER refuse_reactivation BEFORE UPDATE ON survey_quota_groups
+            FOR EACH ROW SIGNAL SQLSTATE "45000" SET MESSAGE_TEXT="Injected reactivation failure"');
+        try { $this->store->activate(1,7); self::fail('Expected write refusal.'); }
+        catch (PDOException $error) { self::assertStringContainsString('Injected reactivation failure',$error->getMessage()); }
+        finally { self::$db->exec('DROP TRIGGER refuse_reactivation'); }
+        self::assertSame($before,$this->store->overview(1,$this->quota,'field',7));
+        self::assertSame(1,(int)self::$db->query('SELECT editing FROM survey_quota_lifecycle')->fetchColumn());
+        self::assertFalse(self::$db->inTransaction());
     }
 
     public function testAdmittedParticipantsCanOverfillAfterLimitReduction(): void {

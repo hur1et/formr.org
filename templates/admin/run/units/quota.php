@@ -1,9 +1,11 @@
 <?= $prepend ?>
 <?php if ($active): ?>
     <div class="alert alert-info" role="status"><strong>Quotas are active.</strong>
-        Tables, variables, categories and provider settings can no longer be changed.
+        To edit tables, variables, categories or provider settings, reopen the configuration in Complete.
         Change limits and counts under <a href="<?= h($overviewUrl) ?>">Quotas</a> in the run menu.</div>
 <?php endif; ?>
+<?php if (!empty($reopened)): ?><div class="alert alert-info" role="status">Quota configuration is open for editing.
+    Current rules and counts remain in use until you activate the changes in Complete.</div><?php endif; ?>
 <p>Set limits for groups of participants. Only those who reach Complete are counted.</p>
 <p>Combine variables in one table to cross them, or add tables for separate targets.</p>
 <fieldset class="quota-editor" <?= $active ? 'disabled' : '' ?> data-max-groups="<?= QuotaRules::MAX_GROUPS ?>" data-readonly="<?= $active ? '1' : '0' ?>" data-sources="<?= h(json_encode($sources, JSON_THROW_ON_ERROR)) ?>">

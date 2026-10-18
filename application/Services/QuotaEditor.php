@@ -57,7 +57,7 @@ class QuotaEditor {
 
     public function load(int $runId, int $runUnitId, int $actorId): array {
         $this->assertUnit($runId, $runUnitId, $actorId);
-        $quota=$this->query('SELECT quota_id FROM survey_quota_lifecycle WHERE run_id=? AND quota_run_unit_id=?',
+        $quota=$this->query('SELECT quota_id FROM survey_quota_lifecycle WHERE run_id=? AND quota_run_unit_id=? AND editing=0',
             [$runId,$runUnitId])->fetchColumn();
         if ($quota!==false) { return (new QuotaStore($this->pdo))->overview($runId,(int)$quota,'field',$actorId)['tables']; }
         $json = $this->query('SELECT tables_json FROM survey_quota_drafts WHERE run_id=? AND run_unit_id=?',
@@ -73,8 +73,9 @@ class QuotaEditor {
             if (!$this->query('SELECT id FROM survey_runs WHERE id=? AND user_id=? FOR UPDATE', [$runId,$actorId])->fetch()) {
                 throw new DomainException('Quota editor requires the run owner.');
             }
-            if ($this->query('SELECT id FROM survey_quotas WHERE run_id=?', [$runId])->fetch()) {
-                throw new DomainException('Quotas are active. Tables, variables and categories cannot be changed. Change limits and counts under Quotas in the run menu.');
+            if ($this->query('SELECT id FROM survey_quotas WHERE run_id=?', [$runId])->fetch()
+                && !$this->query('SELECT quota_id FROM survey_quota_lifecycle WHERE run_id=? AND editing=1',[$runId])->fetch()) {
+                throw new DomainException('Quotas are active. Reopen the configuration in Complete to edit tables, variables and categories. Change limits and counts under Quotas in the run menu.');
             }
             $existing = $this->query('SELECT run_unit_id FROM survey_quota_drafts WHERE run_id=?', [$runId])->fetchColumn();
             if ($existing !== false && (int) $existing !== $runUnitId) {
