@@ -25,6 +25,14 @@ two modules; posted form fields cannot inject an activation or a provider profil
 
 ## Partial or invalid imports
 
+Final local regression on 18 October found that the new Complete default (`none`)
+could also appear after importing a panel run whose profile was intentionally omitted.
+Import now stores an incomplete `provider` draft unless the portable mode explicitly
+says `none`. The editor therefore shows the panel settings and activation refuses the
+missing settings. No provider URLs, placeholders or IDs are imported. Newly created
+Complete modules still default to no provider. The outer-transaction test also checks
+the absence of a persisted draft after rollback rather than relying on the UI default.
+
 An empty Quota module is portable. A partial export without its source survey, a Survey
 without item details, or an unsupported/missing item leaves a visible, editable draft.
 It never falls back to another existing survey, an old database ID or a matching display

@@ -1485,10 +1485,10 @@ class QuotaStoreTest extends TestCase {
         $this->seedStructureTarget();
         $structure = new QuotaStructure(self::$db);
         $structure->importQuota(3,302,7,$structure->exportQuota(1,202,7),[1=>301]);
-        $structure->importComplete(3,303,7,'provider');
-        self::assertSame(['mode'=>''],(new QuotaProviderStore(self::$db))->settings(3,303,7)['provider']);
+        $structure->importComplete(3,303,7,''); // The portable export strips the provider profile.
+        self::assertSame(['mode'=>'provider'],(new QuotaProviderStore(self::$db))->settings(3,303,7)['provider']);
         try { $this->store->activate(3,7); self::fail('Missing provider settings were activated.'); }
-        catch (DomainException $expected) { self::assertNull((new QuotaProviderStore(self::$db))->active(3)); }
+        catch (InvalidArgumentException $expected) { self::assertNull((new QuotaProviderStore(self::$db))->active(3)); }
     }
 
     public function testStructureImportCannotWriteForAnotherOwnerOrCommitAnOuterTransaction(): void {
@@ -1505,7 +1505,8 @@ class QuotaStoreTest extends TestCase {
             self::assertTrue(self::$db->inTransaction());
         } finally { self::$db->rollBack(); }
         self::assertSame([], (new QuotaEditor(self::$db))->load(3,302,7));
-        self::assertSame(['mode'=>''],(new QuotaProviderStore(self::$db))->settings(3,303,7)['provider']);
+        self::assertSame(['mode'=>'none'],(new QuotaProviderStore(self::$db))->settings(3,303,7)['provider']);
+        self::assertSame(0,(int) self::$db->query('SELECT COUNT(*) FROM survey_quota_exit_drafts WHERE run_id=3')->fetchColumn());
     }
 
     public function testStructurePreflightRejectsForeignOwnerAndAnAlreadyConfiguredRun(): void {

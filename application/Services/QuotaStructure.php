@@ -143,12 +143,14 @@ class QuotaStructure {
     }
 
     public function importComplete(int $runId, int $unitId, int $ownerId, string $mode): void {
-        if ($mode !== 'none') { return; }
+        // Only an explicit no-provider export may use that mode. Imported panel runs
+        // need fresh settings; do not let the new-unit default silently change them.
+        $provider = ['mode'=>$mode === 'none' ? 'none' : 'provider'];
         $query = $this->pdo->prepare('INSERT INTO survey_quota_exit_drafts (run_id,complete_run_unit_id,provider_json)
             SELECT r.id,ru.id,? FROM survey_runs r JOIN survey_run_units ru ON ru.run_id=r.id
             JOIN survey_units u ON u.id=ru.unit_id WHERE r.id=? AND r.user_id=? AND ru.id=? AND u.type="Complete"
             AND NOT EXISTS (SELECT 1 FROM survey_quota_lifecycle q WHERE q.run_id=r.id)');
-        $query->execute(['{"mode":"none"}',$runId,$ownerId,$unitId]);
+        $query->execute([json_encode($provider,JSON_THROW_ON_ERROR),$runId,$ownerId,$unitId]);
         if ($query->rowCount() !== 1) { throw new DomainException('Cannot import Complete settings into an active run.'); }
     }
 }

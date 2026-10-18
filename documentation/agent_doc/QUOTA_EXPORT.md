@@ -50,6 +50,13 @@ each row fills only its applicable run's columns. No synthetic answer rows are c
 
 ## CSV codebook
 
+Since 18 October 2026, Run / Logs offers **Download quota codebook (CSV)** for that
+run only. It includes a `survey` column because one run may use several surveys.
+Survey / Export Results calls its existing download **Download quota codebook for
+all runs (CSV)**. Both retain the actual response export's collision-resolved column
+names, including suffixes when surveys are shared. These files explain the response
+values; they are not a download of current aggregate limits/counts.
+
 The user selected a separate CSV file, available under **Export Results / Download
 quota codebook (CSV)** in the survey menu and the existing download dialog. Its fields
 are `column`, `run`, `quota_table`, `value`, `meaning`. It documents actual collision-

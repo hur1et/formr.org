@@ -78,6 +78,24 @@ no saved screenshot artifact is claimed.
 
 ## Remaining release checks
 
+### Final local handover, 18 October 2026
+
+After reviewing the actual editor, monitors and codebook download, Julius reported
+that he had tested everything. This records completion of his local manual review;
+no individual case list or real-provider/VM verification is inferred from that report.
+
+The final standard SQLite suite at `aab1f651` passed **300 tests / 791 assertions**,
+with 11 existing PHPUnit deprecations. Editor/overview JavaScript passed **20 tests**.
+The full MariaDB run exposed a panel-import default regression and an outdated
+default-mode assertion. After correcting both, the three affected import checks
+passed (13 assertions), followed by the complete MariaDB lane:
+**146 tests / 591 assertions**. QuotaStructure and the changed tests pass PHP lint.
+The general SQLite suite was not repeated after this bounded import correction.
+
+Imported panel runs now retain an incomplete provider draft requiring fresh settings;
+explicit no-provider imports remain valid. No schema change was needed. This closes
+the local test pass, not the production-copy migration, VM load test or HiWi acceptance.
+
 - OpenCPU-backed conditional filters and R execution are not installed/tested locally.
 - Real provider-approved IDs, links and reimbursement behavior still need a pilot.
 - The local PHP development server does not prove multi-worker HTTP behavior. Existing
