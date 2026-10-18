@@ -163,6 +163,8 @@ export function initQuotaEditor(block) {
     const select = element("select", null, { class: "form-control" });
     select.id = selectLabel.htmlFor;
     Object.values(sources).forEach((source) => {
+      if (table.dimensions.some((other) => other !== dim && other.source === source.source)
+          && source.source !== dim.source) return;
       const option = element("option", `${source.item_name} — ${source.label} (${source.survey_label || "Survey"}, unit ${source.run_unit_id})${source.supported ? "" : " — unsupported"}`,
         { value: source.source });
       option.disabled = !source.supported;

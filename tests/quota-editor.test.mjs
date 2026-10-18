@@ -121,6 +121,29 @@ test('no categories are selected automatically for a new variable', () => {
   assert.equal(editor.sync(),false);
 });
 
+test('variable lists exclude other selections in the same table but allow reuse in another table', () => {
+  const { root }=fixture();
+  const [crossed,separate]=root.querySelectorAll('.quota-table');
+  const [first,second]=crossed.querySelectorAll('select');
+  const options=(select)=>[...select.options].map(option=>option.value);
+  assert.deepEqual(options(first),[age.source,education.source]);
+  assert.deepEqual(options(second),[sex.source,education.source]);
+  assert.deepEqual(options(separate.querySelector('select')),[age.source,sex.source,education.source]);
+});
+
+test('changing or removing a variable makes its previous source available again', () => {
+  const { root,window }=fixture();
+  const first=root.querySelector('.quota-table select');
+  [...first.options].forEach(option=>{option.selected=option.value===education.source;});
+  first.dispatchEvent(new window.Event('change'));
+  let second=root.querySelectorAll('.quota-table')[0].querySelectorAll('select')[1];
+  assert.deepEqual([...second.options].map(option=>option.value),[age.source,sex.source]);
+  const remove=root.querySelector('.quota-variable').querySelectorAll('button');
+  [...remove].find(button=>button.textContent==='Remove variable').click();
+  second=root.querySelector('.quota-table select');
+  assert.deepEqual([...second.options].map(option=>option.value),[age.source,sex.source,education.source]);
+});
+
 test('typing survives adding another range before a blur/change event', () => {
   const { root,window,editor,hidden }=fixture();
   const name=root.querySelector('input[type=text]');
