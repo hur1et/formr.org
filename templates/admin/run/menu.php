@@ -53,6 +53,7 @@
         <ul class="nav nav-pills nav-stacked">
             <li><a href="<?php echo admin_run_url($run->name, 'user_detail'); ?>" title="Here you'll see users' entire history of participation, i.e. when they left which position etc."><i class="fa fa-user"></i> User Details</a></li>
             <li><a href="<?php echo admin_run_url($run->name, 'random_groups'); ?>" title="This is simply your log of how users have been randomised"><i class="fa fa-random"></i> Random Group</a></li>
+            <li><a href="<?= admin_run_url($run->name, 'export_quota_codebook') ?>"><i class="fa fa-book"></i> Download quota codebook (CSV)</a></li>
             <li><a href="<?php echo admin_run_url($run->name, 'email_log'); ?>" title="The log of every email sent from this run."><i class="fa fa-envelope" title="The log of every email sent from this run."></i> Emails</a></li>
             <li><a href="<?php echo admin_run_url($run->name, 'push_message_log'); ?>" title="The log of every push notification sent from this run."><i class="fa fa-bell" title="The log of every push notification sent from this run."></i> Push Messages</a></li>
             

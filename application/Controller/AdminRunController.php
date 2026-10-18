@@ -351,6 +351,31 @@ class AdminRunController extends AdminController
     }
 
 
+    private function exportQuotaCodebookAction() {
+        $rows=$seen=[];
+        foreach ($this->run->getAllSurveys() as $entry) {
+            if (isset($seen[$entry['id']])) { continue; }
+            $seen[$entry['id']]=true;
+            $survey=SurveyStudy::loadById($entry['id']);
+            if (!$survey || (int)$survey->user_id!==(int)$this->user->id || $survey->hide_results || $survey->unlinked) { continue; }
+            foreach ($survey->getQuotaExportCodebook((int)$this->run->id) as $row) {
+                $rows[]=['survey'=>$survey->name]+$row;
+            }
+        }
+        if (!$rows) {
+            alert('No quota codebook is available for this run yet. Save and activate its quotas first.', 'alert-info');
+            return $this->request->redirect(admin_run_url($this->run->name));
+        }
+        $stream=fopen('php://temp','w+');
+        fputcsv($stream,array_keys($rows[0]),',','"','');
+        foreach ($rows as $row) { fputcsv($stream,array_values($row),',','"',''); }
+        rewind($stream); $csv=stream_get_contents($stream); fclose($stream);
+        $this->response->setContentType('text/csv; charset=UTF-8');
+        $this->response->setHeader('Content-Disposition','attachment; filename="'.$this->run->name.'_quota_codebook.csv"');
+        $this->response->setHeader('Cache-Control','no-store, private');
+        return $this->sendResponse($csv);
+    }
+
     private function exportDataAction()
     {
         $run = $this->run;

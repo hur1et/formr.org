@@ -41,7 +41,7 @@
                         <li><a href="<?= admin_study_url($study->name, 'export_results?format=xlsx'); ?>"><i class="fa fa-floppy-o"></i> Download XLSX</a></li>
                         <li><a href="<?= admin_study_url($study->name, 'export_results?format=json'); ?>"><i class="fa fa-floppy-o"></i> Download JSON</a></li>
                         <?php if ($study->hasQuotaExport()): ?>
-                            <li><a href="<?= admin_study_url($study->name, 'export_quota_codebook'); ?>"><i class="fa fa-book"></i> Download quota codebook (CSV)</a></li>
+                            <li><a href="<?= admin_study_url($study->name, 'export_quota_codebook'); ?>"><i class="fa fa-book"></i> Download quota codebook for all runs (CSV)</a></li>
                         <?php endif; ?>
                     </ul>
                 </li>

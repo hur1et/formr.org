@@ -1293,6 +1293,17 @@ class QuotaStoreTest extends TestCase {
         self::assertSame(1,(int)$rows[2]['quota_counted']);
         $book=(new QuotaExport(self::$db))->codebook(20,7,['session_id','study_id','ended','age','sex','education']);
         self::assertSame(['study-one','study-two'],array_values(array_unique(array_filter(array_column($book,'run')))));
+        $scoped=(new QuotaExport(self::$db))->codebookForRun(20,7,['session_id','study_id','ended','age','sex','education'],2);
+        self::assertSame(['study-two'],array_values(array_unique(array_column($scoped,'run'))));
+        self::assertContains('quota_age_sex_group_2',array_column($scoped,'column'));
+        self::assertNotContains('quota_age_sex_group',array_column($scoped,'column'));
+        self::assertContains('quota_status',array_column($scoped,'column'));
+    }
+
+    public function testRunCodebookCannotReadAnotherOwnersRun(): void {
+        $this->seedSources();
+        $this->expectException(DomainException::class);
+        (new QuotaExport(self::$db))->codebookForRun(20,7,['age'],2);
     }
 
     public function testExportDoesNotExposeAnotherRunOwnersQuotaMetadata(): void {

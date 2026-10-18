@@ -20,6 +20,19 @@ class QuotaExport {
         return $this->plan($studyId,$ownerId,$baseColumns,true)['codebook'];
     }
 
+    /** Keep the survey export's actual column names, but include only this run. */
+    public function codebookForRun(int $studyId,int $ownerId,array $baseColumns,int $runId): array {
+        $query=$this->pdo->prepare('SELECT name FROM survey_runs WHERE id=? AND user_id=?');
+        $query->execute([$runId,$ownerId]); $name=$query->fetchColumn();
+        if ($name===false) { throw new DomainException('Quota codebook requires the run owner.'); }
+        $book=$this->codebook($studyId,$ownerId,$baseColumns);
+        if (!array_filter($book,fn($row)=>$row['run']===$name)) { return []; }
+        $book=array_values(array_filter($book,fn($row)=>$row['run']==='' || $row['run']===$name));
+        foreach ($book as &$row) { $row['run']=$name; }
+        unset($row);
+        return $book;
+    }
+
     public function available(int $studyId,int $ownerId): bool {
         return (bool)$this->plan($studyId,$ownerId,[])['columns'];
     }

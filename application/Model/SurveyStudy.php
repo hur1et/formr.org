@@ -882,11 +882,13 @@ class SurveyStudy extends Model
         return !$this->unlinked && (new QuotaExport($this->db->pdo()))->available((int)$this->id,(int)$this->user_id);
     }
 
-    public function getQuotaExportCodebook(): array
+    public function getQuotaExportCodebook(?int $runId=null): array
     {
         if ($this->unlinked || !$this->resultsTableExists()) { return []; }
         $baseColumns=array_keys($this->db->getTableDefinition($this->results_table,'Field'));
-        return (new QuotaExport($this->db->pdo()))->codebook((int)$this->id,(int)$this->user_id,$baseColumns);
+        $export=new QuotaExport($this->db->pdo());
+        return $runId===null ? $export->codebook((int)$this->id,(int)$this->user_id,$baseColumns)
+            : $export->codebookForRun((int)$this->id,(int)$this->user_id,$baseColumns,$runId);
     }
 
     /**

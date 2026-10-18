@@ -110,7 +110,7 @@
                     Under <strong>Provider statistics</strong>, choose <strong>Create provider link</strong> to share a table of field counts. Anyone with the link can view it without signing in, but cannot change it. Reloading shows the current counts. <strong>Revoke provider link</strong> disables that address. The page can also show your saved groups before activation, with zero counts.
                 </p>
                 <p>
-                    Survey downloads for a run with active quotas include <code>quota_status</code> (whether the participant passed Quota), <code>quota_counted</code> (whether their completion was counted), and one group column per quota table. These columns follow the administrative variables and precede the survey items. Download the <strong>quota codebook (CSV)</strong> from Export Results for the actual column names, category codes and ranges. Existing answer columns are preserved.
+                    Survey downloads for a run with active quotas include <code>quota_status</code> (whether the participant passed Quota), <code>quota_counted</code> (whether their completion was counted), and one group column per quota table. These columns follow the administrative variables and precede the survey items. In the run's <strong>Logs</strong>, choose <strong>Download quota codebook (CSV)</strong> for its column names, category codes and ranges. A survey used in several runs also offers <strong>Download quota codebook for all runs (CSV)</strong> under Export Results. Existing answer columns are preserved.
                 </p>
             </div>
         </div>
