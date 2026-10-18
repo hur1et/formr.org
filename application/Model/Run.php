@@ -642,7 +642,7 @@ class Run extends Model
         $select = $this->db->select(array('unit_id'));
         $select->from('survey_run_units');
         $select->join('survey_units', 'survey_units.id = survey_run_units.unit_id');
-        $select->where(array('run_id' => $this->id, 'type' => 'Privacy'));
+        $select->where(array('run_id' => $this->id, 'survey_units.type' => 'Privacy'));
 
         return $select->fetchColumn() !== false;
     }
@@ -659,7 +659,7 @@ class Run extends Model
 
     public function getAllUnitTypes()
     {
-        $select = $this->db->select(array('survey_run_units.id' => 'run_unit_id', 'unit_id', 'position', 'type', 'description'));
+        $select = $this->db->select(array('survey_run_units.id' => 'run_unit_id', 'unit_id', 'position', 'survey_units.type' => 'type', 'description'));
         $select->from('survey_run_units');
         $select->join('survey_units', 'survey_units.id = survey_run_units.unit_id');
         $select->where(array('run_id' => $this->id))->order('position');
