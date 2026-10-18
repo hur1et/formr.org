@@ -1528,6 +1528,10 @@ class Run extends Model
                 if (!$ready) { alert('Quota draft imported. Select supported variables from preceding surveys before activation.', 'alert-warning'); }
             } else {
                 $structure->importComplete((int) $this->id,(int) $object->run_unit_id,(int) $this->user_id,$data->provider_mode);
+                if (isset($data->completion_page)) {
+                    (new QuotaCompletionPage($this->db->pdo()))->save((int)$this->id,(int)$object->run_unit_id,
+                        (int)$this->user_id,(array)$data->completion_page);
+                }
             }
             $createdUnits[$object->position] = $object->displayForRun(Site::getInstance()->renderAlerts());
         }

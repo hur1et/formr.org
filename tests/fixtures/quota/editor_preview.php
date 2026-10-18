@@ -3,6 +3,7 @@
 // Run: php -S 127.0.0.1:8096 tests/fixtures/quota/editor_preview.php
 $root = dirname(__DIR__, 3);
 require_once $root . '/application/Services/QuotaRules.php';
+require_once $root . '/application/Services/QuotaCompletionPage.php';
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $assets = [
     '/quota-editor.js'=>['webroot/assets/common/js/quota-editor.js','text/javascript'],
@@ -28,6 +29,7 @@ $tables = [];
 $active = false;
 $unitId = 203;
 $provider = ['mode'=>'none'];
+$completionPage = QuotaCompletionPage::defaults();
 $body = '';
 $providerExit = '';
 $sources = [];

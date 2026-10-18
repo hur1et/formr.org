@@ -59,6 +59,16 @@ class QuotaStructureTest extends TestCase {
             (object)['type'=>'Complete','position'=>10]]);
     }
 
+    public function testPortableCompletionTextAndTimingSurviveWithoutAProviderProfile(): void {
+        $page=['body'=>'Study debriefing','redirect_message'=>'Wait {seconds}: {link}','redirect_delay'=>90,'redirect_link_text'=>'Return'];
+        $unit=(object)['type'=>'Complete','position'=>40,'provider_mode'=>'provider','completion_page'=>$page,
+            'provider_complete'=>'https://old-study.example/complete'];
+        $imported=QuotaStructure::prepareImport([$unit])[0];
+        self::assertSame($page,$imported->completion_page);
+        self::assertSame('',$imported->provider_mode);
+        self::assertFalse(isset($imported->provider_complete));
+    }
+
     public function testUnsupportedVersionIsRejected(): void {
         $definition = $this->definition(); $definition['version'] = 2;
         $this->expectException(InvalidArgumentException::class);

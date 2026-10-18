@@ -355,7 +355,7 @@ class RunSession extends Model {
             return $execute ? $this->execute() : null;
         }
 
-        alert('Run ' . $this->run->name . ':<br /> Oops, this study\'s creator forgot to give it a proper ending (a Stop button), user ' . h($this->session) . ' is dangling at the end.', 'alert-danger');
+        alert('Run ' . $this->run->name . ':<br /> Oops, this study\'s creator forgot to give it a proper ending (Stop Point or Complete), user ' . h($this->session) . ' is dangling at the end.', 'alert-danger');
         $this->end();
         return ['body' => ''];
     }

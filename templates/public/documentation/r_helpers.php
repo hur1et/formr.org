@@ -51,7 +51,7 @@ For example, to obtain somebody's age, you need only write <code class="r">demog
     <i>$current_unit_id</i><br>
     <i>$deactivated</i><br>
     <i>$no_email</i></dt>
-    <dd>This data frame tracks user sessions in the run/study, including when they started the study (created), last accessed it, ended it (reached a Stop button), the current position in the run, and whether the user has opted out of email notifications.</dd>
+    <dd>This data frame tracks user sessions in the run/study, including when they started the study (created), last accessed it, ended it (for example, at Stop Point or Complete), the current position in the run, and whether the user has opted out of email notifications.</dd>
     
     <dt>survey_unit_sessions<br>
     <i>$created</i><br>

@@ -25,6 +25,7 @@ class QuotaDraftUnitTest extends TestCase {
         } : new class($runtime) extends Complete {
             public function __construct(private QuotaRuntime $engine) {}
             protected function quotaRuntime(): QuotaRuntime { return $this->engine; }
+            protected function completionBody(UnitSession $session) { return '<p>Thank you.</p>'; }
         };
         $unit->run = (new ReflectionClass(Run::class))->newInstanceWithoutConstructor();
         $unit->run->id = 1;

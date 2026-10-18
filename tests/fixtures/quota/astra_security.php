@@ -34,7 +34,9 @@ try {
     astraFails(fn()=>$providers->capture(1,12,['panel'=>'other-session']),'Cross-run capture');
     $checks[]='provider identity immutable, bounded, and run-scoped';
     astraAssert(!empty($runtime->execute('Quota',1,1,102,12)['move_on']),'Admission');
-    $out=astraComplete($db,$runtime,1); parse_str(parse_url($out['redirect'],PHP_URL_QUERY),$query);
+    $out=astraComplete($db,$runtime,1);
+    preg_match('/data-completion-link href="([^"]+)"/',$out['content'],$returnLink);
+    parse_str(parse_url(html_entity_decode($returnLink[1],ENT_QUOTES,'UTF-8'),PHP_URL_QUERY),$query);
     astraAssert($query===['study'=>'fixed','id'=>$identity],'Exact single encoding without query injection');
     astraComplete($db,$runtime,1);
     $checks[]='field redirect encoded once, no provider request performed, completion retry idempotent';

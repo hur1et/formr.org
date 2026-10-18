@@ -824,7 +824,6 @@ class AdminRunController extends AdminController
                 'icon' => 'fa-pencil-square',
             ),
             'Quota' => array('title' => 'Add Quota (development version)', 'icon' => 'fa-users'),
-            'Complete' => array('title' => 'Add Complete (development version)', 'icon' => 'fa-check-circle'),
             'External' => array(
                 'title' => 'Add External Link',
                 'icon' => 'fa-external-link-square',
@@ -857,6 +856,7 @@ class AdminRunController extends AdminController
                 'title' => 'Add shuffle (Randomise Participants)',
                 'icon' => 'fa-random',
             ),
+            'Complete' => array('title' => 'Add Complete (development version)', 'icon' => 'fa-check-circle'),
             'Page' => array(
                 'title' => 'Add a Stop Point',
                 'icon' => 'fa-stop',

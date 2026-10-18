@@ -91,6 +91,9 @@ class QuotaStructure {
             } else {
                 // Study-specific profiles are intentionally excluded, even from hand-edited JSON.
                 $safe['provider_mode'] = ($unit->provider_mode ?? null) === 'none' ? 'none' : '';
+                if (isset($unit->completion_page)) {
+                    $safe['completion_page']=QuotaCompletionPage::validate((array)$unit->completion_page);
+                }
             }
             $units[$index] = (object) $safe;
         }

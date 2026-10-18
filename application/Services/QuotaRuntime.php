@@ -16,7 +16,7 @@ class QuotaRuntime {
         $active = $providers->active($runId);
         if (!$active) { return ['content'=>'<p>This study is temporarily unavailable. Please try again later.</p>']; }
         $type = $kind === 'screen_out' ? 'Page' : $kind;
-        $unit = $this->query('SELECT rs.testing,rs.ended AS run_ended,ru.position FROM survey_unit_sessions us
+        $unit = $this->query('SELECT rs.testing,rs.ended AS run_ended,ru.position,u.id AS unit_id FROM survey_unit_sessions us
             JOIN survey_run_sessions rs ON rs.id=us.run_session_id
             JOIN survey_run_units ru ON ru.id=us.run_unit_id AND ru.run_id=rs.run_id AND ru.unit_id=us.unit_id
             JOIN survey_units u ON u.id=us.unit_id
@@ -63,6 +63,10 @@ class QuotaRuntime {
         $content = $pageContent ?: ($outcome === 'complete' ? '<p>Thank you. Your participation is complete.</p>'
             : '<p>Thank you. Your participation has ended.</p>');
         $test = (int) $unit['testing'] === 1;
+        if ($kind==='Complete') {
+            $page=(new QuotaCompletionPage($this->pdo))->load((int)$unit['unit_id']);
+            $content=QuotaCompletionPage::render($page,$content,$url,$test);
+        }
         if ($test && $url !== null) {
             // Plain text only: even following a preview link would contact the real provider.
             $content .= '<p>Test exit: ' . htmlspecialchars($outcome,ENT_QUOTES,'UTF-8') . '</p><pre>'
@@ -70,7 +74,7 @@ class QuotaRuntime {
         }
         $endedAt = $this->finish((int) $active['quota_id'],$runId,$sessionId,$unitSessionId,$outcome,$test);
         $output = ['quota_terminal'=>true,'ended_at'=>$endedAt,'content'=>$content];
-        if (!$test && $url !== null) { $output['redirect']=$url; }
+        if (!$test && $url !== null && $kind!=='Complete') { $output['redirect']=$url; }
         return $output;
     }
 

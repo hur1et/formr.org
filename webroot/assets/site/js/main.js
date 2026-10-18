@@ -20,6 +20,10 @@ import hljs from 'highlight.js';
 import '../../common/js/highlight/styles/vs.css';
 
 // Common JS
+import { initCompletionRedirect } from '../../common/js/completion-redirect.js';
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.completion-redirect').forEach((root) => initCompletionRedirect(root));
+});
 import '../../common/js/cookieconsent.js';
 import '../../common/js/main.js';
 import '../../common/js/survey.js';

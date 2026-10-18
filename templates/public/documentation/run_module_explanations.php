@@ -125,7 +125,7 @@
         <div id="complete" class="panel-collapse collapse complete">
             <div class="panel-body">
                 <p>
-                    Complete ends a successful participation and adds it to the quota counts. Place it after the main questionnaire and any quality checks. Participants must have passed Quota, and each participation is counted once. A normal Stop point does not add a completion to the quota counts.
+                    Complete ends a successful participation and adds it to the quota counts. Place it after the main questionnaire and any quality checks. Participants must have passed Quota, and each participation is counted once. A normal Stop point does not add a completion to the quota counts. Complete can display a feedback or debriefing text, using Markdown as in Stop Point. With a panel provider, it shows an individual return link and redirects automatically after 10 seconds by default. Edit the delay to allow time for longer texts. Without a provider, the completion page stays open. Test participants see a plain-text link preview and are not redirected.
                 </p>
                 <p>
                     Without a panel provider is the default: participants finish on a formr page, and no provider settings are needed. Choose With a panel provider to show the fields for its three return links, participant ID parameter and placeholder. These settings apply to the whole run, with one provider per run. Save Quota first, then choose <strong>Activate quotas and completion</strong> here to activate both modules together.
@@ -508,12 +508,12 @@
             <a class="accordion-toggle" data-toggle="collapse" href="#stop_point">
                 <i class="fa-fw fa fa-stop pull-left fa-3x"></i>
                 Stop Point<br>
-                <small>you need at least one</small></a>
+                <small>end a run with Stop Point or Complete</small></a>
         </div>
         <div id="stop_point" class="panel-collapse collapse stop_point">
             <div class="panel-body">
                 <p>
-                    You will always need at least one. These are stop points in your run, where you can give short or complex feedback, ranging from "You're not eligible to participate." to "This is the scatter plot of your mood and your alcohol consumption across the last two weeks".
+                    End a run with either Stop Point or Complete. Stop Point ends a participation without recording a successful quota completion; use Complete for a successful quota completion. You can use Stop Point to give short or complex feedback, ranging from "You're not eligible to participate." to "This is the scatter plot of your mood and your alcohol consumption across the last two weeks". Do not place a Stop Point on the successful path before Complete: it ends the participation before Complete can be reached.
                 </p>
                 <p>
                     If you combine these end points with Skip Forward, you can have several in your run: You would use the Skip Forward to check whether participants are eligible, and if so, skip over the stop point between the Skip Forward and the survey that they are eligible for. This way, ineligible participants end up in a dead end before the survey. In the edit run interface, you can see green counts of the number of people on this position on the left, so you can see easily how many people are ineligible by checking the count.<br>

@@ -2,6 +2,11 @@
 
 Development milestone, updated 2026-10-18. Not a field release.
 
+Complete now supports editable feedback, a configurable provider-return countdown
+(default 10 seconds) and an individual fallback link. Apply patches 066–067 in addition
+to the earlier quota patches. See [QUOTA_COMPLETION_PAGE.md](QUOTA_COMPLETION_PAGE.md)
+for storage, transfer, Stop Point audit and targeted/browser verification.
+
 ## Activation
 
 Save the Quota draft, then use **Activate quotas and completion** in Complete.

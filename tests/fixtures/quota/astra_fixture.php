@@ -25,7 +25,7 @@ function astraSchema(PDO $db): void {
           KEY(study_id,list_name)) ENGINE=InnoDB;
         CREATE TABLE astra_answers (session_id INT UNSIGNED PRIMARY KEY,study_id INT UNSIGNED,ended DATETIME,
           age INT,sex VARCHAR(12),education VARCHAR(12)) ENGINE=InnoDB;');
-    foreach (['060_quota_core','061_quota_drafts','062_quota_lifecycle','063_quota_overview_edits','064_quota_shares','065_quota_reopening'] as $patch) {
+    foreach (['060_quota_core','061_quota_drafts','062_quota_lifecycle','063_quota_overview_edits','064_quota_shares','065_quota_reopening','066_quota_completion_page','067_quota_completion_link_text'] as $patch) {
         $db->exec(file_get_contents(__DIR__.'/../../../sql/patches/'.$patch.'.sql'));
     }
     $db->exec('INSERT INTO survey_runs VALUES(1,7,"astra-study"),(2,8,"other-owner");

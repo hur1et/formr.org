@@ -11,6 +11,7 @@ require_once __DIR__ . '/../application/Services/QuotaEditor.php';
 require_once __DIR__ . '/../application/Services/QuotaProviderConfig.php';
 require_once __DIR__ . '/../application/Services/QuotaProviderStore.php';
 require_once __DIR__ . '/../application/Services/QuotaRuntime.php';
+require_once __DIR__ . '/../application/Services/QuotaCompletionPage.php';
 require_once __DIR__ . '/../application/Services/QuotaOverview.php';
 require_once __DIR__ . '/../application/Services/QuotaMonitor.php';
 require_once __DIR__ . '/../application/Services/QuotaExport.php';
@@ -58,6 +59,8 @@ class QuotaStoreTest extends TestCase {
         self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/063_quota_overview_edits.sql'));
         self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/064_quota_shares.sql'));
         self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/065_quota_reopening.sql'));
+        self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/066_quota_completion_page.sql'));
+        self::$db->exec(file_get_contents(__DIR__ . '/../sql/patches/067_quota_completion_link_text.sql'));
     }
 
     public static function tearDownAfterClass(): void {
@@ -73,7 +76,7 @@ class QuotaStoreTest extends TestCase {
         foreach (['survey_quota_configuration_log','survey_quota_shares','survey_quota_edits','survey_quota_provider_ids','survey_quota_lifecycle','survey_quota_exit_drafts','survey_quota_drafts', 'survey_quota_limit_changes', 'survey_quota_adjustments', 'survey_quota_completions',
             'survey_quota_assignments', 'survey_quota_decisions', 'survey_quota_groups', 'survey_quota_tables',
             'survey_quotas', 'quota_demo_results', 'survey_item_choices', 'survey_items', 'survey_studies',
-            'survey_run_units', 'survey_unit_sessions', 'survey_pages', 'survey_units', 'survey_run_sessions', 'survey_runs'] as $table) {
+            'survey_run_units', 'survey_unit_sessions', 'survey_pages', 'survey_quota_completion_pages', 'survey_units', 'survey_run_sessions', 'survey_runs'] as $table) {
             self::$db->exec('DELETE FROM ' . $table);
         }
         self::$db->exec('INSERT INTO survey_runs VALUES (1, 7,"study-one"), (2, 8,"study-two");
@@ -1127,10 +1130,42 @@ class QuotaStoreTest extends TestCase {
         self::assertTrue($runtime->execute('Quota',1,1,202,130)['move_on']);
         $this->reachComplete();
         $result = $runtime->execute('Complete',1,1,203,101);
-        self::assertSame('https://provider.example/complete?p=123&m=' . rawurlencode('ä/a&b=1+%2F'),$result['redirect']);
+        self::assertArrayNotHasKey('redirect',$result);
+        self::assertStringContainsString('href="https://provider.example/complete?p=123&amp;m=' . rawurlencode('ä/a&b=1+%2F').'"',$result['content']);
+        self::assertStringContainsString('data-completion-delay="10"',$result['content']);
         self::assertSame($result,$runtime->execute('Complete',1,1,203,101));
         $this->assertCounts(1);
         self::assertSame(1,(int) self::$db->query('SELECT COUNT(*) FROM survey_quota_provider_ids')->fetchColumn());
+    }
+
+    public function testCompletionPageCanChangeAfterActivationWithoutChangingCountsOrProvider(): void {
+        $this->seedLifecycle(true);
+        $pages=new QuotaCompletionPage(self::$db);
+        $settings=['body'=>'A long **debriefing**.','redirect_message'=>'Return in {seconds}. {link}','redirect_delay'=>'120'];
+        $pages->save(1,203,7,$settings);
+        self::assertSame(120,$pages->load(40)['redirect_delay']);
+        self::assertSame($settings['body'],$pages->load(40)['body']);
+        $this->assertCounts(0);
+        self::assertFalse((bool)(new QuotaProviderStore(self::$db))->active(1)['editing']);
+        (new QuotaProviderStore(self::$db))->capture(1,1,['panel'=>'long-debrief']);
+        $runtime=new QuotaRuntime(self::$db);
+        $runtime->execute('Quota',1,1,202,130); $this->reachComplete();
+        $out=$runtime->execute('Complete',1,1,203,101,false,'<p>A long <strong>debriefing</strong>.</p>');
+        self::assertArrayNotHasKey('redirect',$out);
+        self::assertStringContainsString('data-completion-delay="120"',$out['content']);
+        self::assertStringContainsString('<strong>debriefing</strong>',$out['content']);
+        $this->assertCounts(1);
+        $runtime->execute('Complete',1,1,203,101); $this->assertCounts(1);
+        $pages->save(1,203,7,$settings); // An unchanged save is valid, too.
+    }
+
+    public function testCompletionPageCannotBeWrittenByAnotherOwnerOrToAnotherUnitType(): void {
+        $this->seedLifecycle();
+        $pages=new QuotaCompletionPage(self::$db);
+        foreach ([[1,203,8],[1,202,7],[2,203,7]] as [$run,$unit,$actor]) {
+            try { $pages->save($run,$unit,$actor,['body'=>'Unauthorized']); self::fail('Foreign completion page was saved.'); }
+            catch (DomainException $expected) { self::assertSame(QuotaCompletionPage::defaults(),$pages->load(40)); }
+        }
     }
 
     public function testMissingProviderIdentityAllowsAdmissionButHoldsCompletionForRetry(): void {
@@ -1146,7 +1181,7 @@ class QuotaStoreTest extends TestCase {
         self::assertNull(self::$db->query('SELECT ended FROM survey_run_sessions WHERE id=1')->fetchColumn());
         self::assertNull(self::$db->query('SELECT ended FROM survey_unit_sessions WHERE id=101')->fetchColumn());
         $providers->capture(1,1,['panel'=>'supplied_later']);
-        self::assertStringContainsString('m=supplied_later',$runtime->execute('Complete',1,1,203,101)['redirect']);
+        self::assertStringContainsString('m=supplied_later',$runtime->execute('Complete',1,1,203,101)['content']);
         $this->assertCounts(1);
     }
 
@@ -1184,6 +1219,7 @@ class QuotaStoreTest extends TestCase {
         self::assertArrayNotHasKey('redirect',$result);
         self::assertStringContainsString('<pre>https://provider.example/complete?',$result['content']);
         self::assertStringNotContainsString('<a',$result['content']);
+        self::assertStringNotContainsString('data-completion-delay',$result['content']);
         $this->assertCounts(0,'field');
         $this->assertCounts(1,'test');
     }
