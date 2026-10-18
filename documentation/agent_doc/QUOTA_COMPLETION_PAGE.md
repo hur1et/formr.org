@@ -74,3 +74,10 @@ The native no-Stop browser fixture below confirms this path. Special settings pa
 
 No full general suite rerun, VM change, real-provider pilot or OpenCPU exercise was
 performed for this change. VM migration/load/HiWi gates remain required.
+
+Editor sizing follow-up, 18 October: Complete now uses block labels and full-width
+text editors (feedback minimum ten lines, return message three). Opt-in full-width
+Ace editors wrap at their actual width; other modules keep their existing sizing.
+Browser checks at 375/768/1440 confirm editor/container widths match, with viewport
+restored afterwards. PHP lint and frontend build pass (existing size warnings).
+No suite rerun for this layout-only change. Screenshot: `outputs/Complete-editor-full-width.png`.

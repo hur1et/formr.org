@@ -508,10 +508,11 @@ import {
   // Hook up ACE editor to all textareas with data-editor attribute
   RunUnit.prototype.hookAceToTextarea = function (textarea) {
     var mode = textarea.data("editor");
+    var fullWidth = textarea.data("editor-width") === "full";
 
     var editDiv = $("<div>", {
       position: "absolute",
-      width: textarea.width(),
+      width: fullWidth ? "100%" : textarea.width(),
       height: textarea.height(),
       class: textarea.attr("class"),
     }).insertBefore(textarea);
@@ -532,7 +533,7 @@ import {
     this.editor.renderer.setShowGutter(false);
 
     session.setUseWrapMode(true);
-    session.setWrapLimitRange(42, 42);
+    session.setWrapLimitRange(fullWidth ? null : 42, fullWidth ? null : 42);
     session.setMode("ace/mode/" + mode);
 
     this.editor.on("change", $.proxy(this.changes, this));

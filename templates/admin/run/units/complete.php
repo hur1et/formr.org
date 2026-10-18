@@ -7,24 +7,26 @@
     Current rules remain in use until you activate the changes. Counts for matching table and group codes are retained,
     even if their variables or ranges change. New codes start at zero. Review the counts after activation.</div><?php endif; ?>
 <?php $usesProvider = ($provider['mode'] ?? 'none') === 'provider'; ?>
+<div class="completion-page-fields">
 <div class="form-group">
     <label for="completion-body-<?= (int)$unitId ?>">Feedback text</label>
-    <textarea class="form-control" id="completion-body-<?= (int)$unitId ?>" name="completion_body" data-editor="markdown" rows="6"><?= h($completionPage['body']) ?></textarea>
+    <textarea class="form-control" id="completion-body-<?= (int)$unitId ?>" name="completion_body" data-editor="markdown" data-editor-width="full" rows="10"><?= h($completionPage['body']) ?></textarea>
     <p class="help-block">You can use Markdown, as in Stop Point. Text and redirect timing remain editable after activation.</p>
 </div>
-<div class="form-group">
+<div class="form-group completion-delay">
     <label for="completion-delay-<?= (int)$unitId ?>">Redirect delay (seconds)</label>
     <input class="form-control" id="completion-delay-<?= (int)$unitId ?>" type="number" name="completion_delay" min="0" max="2147483" step="1" value="<?= (int)$completionPage['redirect_delay'] ?>">
     <p class="help-block">With a provider, show this page before returning the participant. Allow enough time to read any debriefing. Use 0 for an immediate return.</p>
 </div>
 <div class="form-group">
     <label for="completion-message-<?= (int)$unitId ?>">Return message</label>
-    <textarea class="form-control" id="completion-message-<?= (int)$unitId ?>" name="completion_message" rows="2"><?= h($completionPage['redirect_message']) ?></textarea>
+    <textarea class="form-control" id="completion-message-<?= (int)$unitId ?>" name="completion_message" data-editor-width="full" rows="3"><?= h($completionPage['redirect_message']) ?></textarea>
     <p class="help-block">Shown only with a provider. Use <code>{seconds}</code> for the countdown and <code>{link}</code> for the individual return link. The link is always included.</p>
 </div>
 <div class="form-group">
     <label for="completion-link-text-<?= (int)$unitId ?>">Return link text</label>
     <input class="form-control" id="completion-link-text-<?= (int)$unitId ?>" name="completion_link_text" maxlength="255" value="<?= h($completionPage['redirect_link_text']) ?>">
+</div>
 </div>
 <fieldset class="quota-provider" <?= $active ? 'disabled' : '' ?>>
     <div class="form-group">

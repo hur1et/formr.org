@@ -387,6 +387,22 @@ body.skin-black .content-wrapper {
     word-break: break-word;
 }
 
+/* Complete text editors fill the module dialog instead of the inline form width. */
+.completion-page-fields .form-group {
+    display: block;
+    width: 100%;
+}
+.completion-page-fields label {
+    display: block;
+}
+.completion-page-fields .form-control {
+    width: 100%;
+    max-width: 100%;
+}
+.completion-page-fields .completion-delay .form-control {
+    width: 14em;
+}
+
 /* Secrets management (extracted from settings.php inline styles) */
 .secret-value-wrap {
     display: flex;
